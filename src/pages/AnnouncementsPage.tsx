@@ -28,10 +28,6 @@ export default function AnnouncementsPage() {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (user?.role !== 'admin') {
-      toast.error('Only admins can manage announcements');
-      return;
-    }
     loadData();
     setupSubscription();
   }, [user]);
@@ -172,18 +168,20 @@ export default function AnnouncementsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Announcements</h1>
-          <p className="text-gray-600 mt-1">Create and manage announcements for team members</p>
+          <p className="text-gray-600 mt-1">View announcements for team members</p>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          <Plus className="w-5 h-5" />
-          New Announcement
-        </button>
+        {user?.role === 'admin' && (
+          <button
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            <Plus className="w-5 h-5" />
+            New Announcement
+          </button>
+        )}
       </div>
 
       {/* Announcements List */}
@@ -218,22 +216,24 @@ export default function AnnouncementsPage() {
                     </span>
                   </div>
                 </div>
-                <div className="flex gap-2 ml-4">
-                  <button
-                    onClick={() => handleEdit(announcement)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                    title="Edit"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(announcement.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                    title="Delete"
-                  >
-                    <Trash className="w-4 h-4" />
-                  </button>
-                </div>
+                {user?.role === 'admin' && (
+                  <div className="flex gap-2 ml-4">
+                    <button
+                      onClick={() => handleEdit(announcement)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      title="Edit"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(announcement.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                      title="Delete"
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <p className="text-gray-700 whitespace-pre-wrap">{announcement.content}</p>
@@ -242,8 +242,8 @@ export default function AnnouncementsPage() {
         )}
       </div>
 
-      {/* Create/Edit Modal */}
-      {showModal && (
+      {/* Create/Edit Modal - Only for admins */}
+      {showModal && user?.role === 'admin' && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">

@@ -524,10 +524,10 @@ export default function UsersPage() {
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="VIEWER">Viewer</option>
-                  <option value="RESTRICTED_ADMIN">Restricted Admin</option>
+                  <option value="viewer">Viewer</option>
+                  <option value="restricted_admin">Restricted Admin</option>
                   {!users.some(u => u.role === 'admin' && u.id !== editingUserId) && (
-                    <option value="ADMIN">Admin</option>
+                    <option value="admin">Admin</option>
                   )}
                 </select>
                 {formData.role === 'admin' && (
