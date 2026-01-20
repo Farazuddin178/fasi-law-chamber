@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { FolderOpen, Gavel, FileText, Users, CheckCircle, Clock, Eye, AlertCircle, TrendingUp, BarChart3, Bell, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -255,7 +256,7 @@ export default function DashboardPage() {
           <Bell className="w-6 h-6 text-blue-600" />
           <div>
             <h2 className="font-bold text-gray-900">Announcements</h2>
-            <p className="text-sm text-gray-600">View announcements on the <a href="/announcements" className="text-blue-600 hover:underline">Announcements page</a></p>
+            <p className="text-sm text-gray-600">View announcements on the <Link to="/announcements" className="text-blue-600 hover:underline">Announcements page</Link></p>
           </div>
         </div>
       </div>
