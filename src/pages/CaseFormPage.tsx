@@ -1,0 +1,896 @@
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { supabase, Case } from '@/lib/supabase';
+import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useAuth } from '@/contexts/AuthContext';
+
+export default function CaseFormPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [caseExists, setCaseExists] = useState(false);
+  const [checkingCase, setCheckingCase] = useState(false);
+
+  const [formData, setFormData] = useState({
+    case_number: '',
+    flc_number: '',
+    sr_number: '',
+    cnr: '',
+    client_name: '',
+    referred_by: '',
+    referred_by_case_number: '',
+    primary_petitioner: '',
+    primary_respondent: '',
+    petitioner_adv: '',
+    respondent_adv: '',
+    category: '',
+    sub_category: '',
+    sub_sub_category: '',
+    district: '',
+    subject: '',
+    memo: '',
+    connected_case: '',
+    purpose: '',
+    jud_name: '',
+    filing_date: '',
+    registration_date: '',
+    listing_date: '',
+    return_date: '',
+    disp_date: '',
+    disp_type: '',
+    prayer: '',
+    status: 'pending' as 'pending' | 'filed' | 'disposed' | 'closed',
+    // Criminal Petition Fields
+    petition_type: '' as 'new' | 'returned' | 'resubmitted',
+    return_reasons: '',
+    slr_number: '',
+    hearing_court: '',
+    mention_date: '',
+    temporary_filing_number: '',
+    permanent_filing_number: '',
+    courtship_submitted: false,
+    courtship_submission_type: '' as 'internal' | 'registry',
+    acknowledgment_received: false,
+    hearing_request_status: '' as 'pending' | 'accepted' | 'rejected',
+    next_hearing_date: '',
+    assigned_to: '',
+    fasi_comments: '',
+    hearing_date: '',
+    // Motion List Fields
+    motion_type: '' as 'adjournment' | 'emergency' | 'courtship' | 'other',
+    motion_reason: '',
+    is_adjourned: false,
+    // Post Listing Fields
+    post_listing_date: '',
+    posting_clerk_name: '',
+    backdated_reason: '',
+    advance_date: false,
+    backdated: false,
+    document_requirements: '',
+  });
+
+  useEffect(() => {
+    if (id && id !== 'new') {
+      setIsEditMode(true);
+      loadCase();
+    }
+  }, [id]);
+
+  // Check if case already exists
+  const checkCaseExists = async (caseNumber: string) => {
+    if (!caseNumber.trim() || isEditMode) return;
+    
+    setCheckingCase(true);
+    try {
+      const { data, error } = await supabase
+        .from('cases')
+        .select('id')
+        .eq('case_number', caseNumber.trim())
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 = no rows found, which is good
+        throw error;
+      }
+
+      setCaseExists(!!data);
+    } catch (error: any) {
+      console.error('Error checking case:', error);
+    } finally {
+      setCheckingCase(false);
+    }
+  };
+
+  const loadCase = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('cases')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      if (!data) {
+        toast.error('Case not found');
+        navigate('/cases');
+        return;
+      }
+      
+      setFormData({
+        case_number: data.case_number || '',
+        flc_number: data.flc_number || '',
+        sr_number: data.sr_number || '',
+        cnr: data.cnr || '',
+        client_name: data.client_name || '',
+        referred_by: data.referred_by || '',
+        referred_by_case_number: data.referred_by_case_number || '',
+        primary_petitioner: data.primary_petitioner || '',
+        primary_respondent: data.primary_respondent || '',
+        petitioner_adv: data.petitioner_adv || '',
+        respondent_adv: data.respondent_adv || '',
+        category: data.category || '',
+        sub_category: data.sub_category || '',
+        sub_sub_category: data.sub_sub_category || '',
+        district: data.district || '',
+        subject: data.subject || '',
+        memo: data.memo || '',
+        connected_case: data.connected_case || '',
+        purpose: data.purpose || '',
+        jud_name: data.jud_name || '',
+        filing_date: data.filing_date || '',
+        registration_date: data.registration_date || '',
+        listing_date: data.listing_date || '',
+        return_date: data.return_date || '',
+        disp_date: data.disp_date || '',
+        disp_type: data.disp_type || '',
+        prayer: data.prayer || '',
+        status: data.status || 'pending',
+        petition_type: data.petition_type || 'new',
+        return_reasons: data.return_reasons || '',
+        slr_number: data.slr_number || '',
+        hearing_court: data.hearing_court || '',
+        mention_date: data.mention_date || '',
+        temporary_filing_number: data.temporary_filing_number || '',
+        permanent_filing_number: data.permanent_filing_number || '',
+        courtship_submitted: data.courtship_submitted || false,
+        courtship_submission_type: data.courtship_submission_type || 'internal',
+        acknowledgment_received: data.acknowledgment_received || false,
+        hearing_request_status: data.hearing_request_status || 'pending',
+        next_hearing_date: data.next_hearing_date || '',
+        assigned_to: data.assigned_to || '',
+        fasi_comments: data.fasi_comments || '',
+        hearing_date: data.hearing_date || '',
+        motion_type: data.motion_type || '',
+        motion_reason: data.motion_reason || '',
+        is_adjourned: data.is_adjourned || false,
+        post_listing_date: data.post_listing_date || '',
+        posting_clerk_name: data.posting_clerk_name || '',
+        backdated_reason: data.backdated_reason || '',
+        advance_date: data.advance_date || false,
+        backdated: data.backdated || false,
+        document_requirements: data.document_requirements || '',
+      });
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to load case');
+      navigate('/cases');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    setLoading(true);
+    try {
+      // Only include core case fields that exist in database
+      // Filter out fields that are not part of the base cases table
+      const caseData = {
+        case_number: formData.case_number || null,
+        flc_number: formData.flc_number || null,
+        sr_number: formData.sr_number || null,
+        cnr: formData.cnr || null,
+        client_name: formData.client_name || null,
+        referred_by: formData.referred_by || null,
+        referred_by_case_number: formData.referred_by_case_number || null,
+        primary_petitioner: formData.primary_petitioner || null,
+        primary_respondent: formData.primary_respondent || null,
+        petitioner_adv: formData.petitioner_adv || null,
+        respondent_adv: formData.respondent_adv || null,
+        category: formData.category || null,
+        sub_category: formData.sub_category || null,
+        sub_sub_category: formData.sub_sub_category || null,
+        district: formData.district || null,
+        subject: formData.subject || null,
+        memo: formData.memo || null,
+        connected_case: formData.connected_case || null,
+        purpose: formData.purpose || null,
+        jud_name: formData.jud_name || null,
+        filing_date: formData.filing_date || null,
+        registration_date: formData.registration_date || null,
+        listing_date: formData.listing_date || null,
+        return_date: formData.return_date || null,
+        disp_date: formData.disp_date || null,
+        disp_type: formData.disp_type || null,
+        prayer: formData.prayer || null,
+        status: formData.status,
+      };
+
+      if (isEditMode && id) {
+        // Update existing case
+        const { error } = await supabase
+          .from('cases')
+          .update(caseData)
+          .eq('id', id);
+
+        if (error) throw error;
+        toast.success('Case updated successfully');
+        navigate(`/cases/${id}`);
+      } else {
+        // Create new case
+        const { data, error } = await supabase
+          .from('cases')
+          .insert({
+            ...caseData,
+            created_by: user?.id,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        toast.success('Case created successfully');
+        navigate(`/cases/${data.id}`);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save case');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center space-x-4 mb-6">
+        <Link to="/cases" className="text-gray-600 hover:text-gray-900">
+          <ArrowLeft className="w-6 h-6" />
+        </Link>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {isEditMode ? 'Edit Case' : 'New Case'}
+        </h1>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Basic Information */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Basic Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Case Number
+              </label>
+              <input
+                type="text"
+                value={formData.case_number}
+                onChange={(e) => {
+                  setFormData({ ...formData, case_number: e.target.value });
+                  checkCaseExists(e.target.value);
+                }}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  caseExists && !isEditMode ? 'border-yellow-400 bg-yellow-50' : 'border-gray-300'
+                }`}
+              />
+              {caseExists && !isEditMode && (
+                <div className="flex items-center gap-2 mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-yellow-600" />
+                  <span className="text-sm text-yellow-700 font-medium">Case already exists in the system</span>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                FLC Number (Optional - for new cases without case number)
+              </label>
+              <input
+                type="text"
+                value={formData.flc_number}
+                onChange={(e) => setFormData({ ...formData, flc_number: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter FLC number if no case number"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">SR Number</label>
+              <input
+                type="text"
+                value={formData.sr_number}
+                onChange={(e) => setFormData({ ...formData, sr_number: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">CNR</label>
+              <input
+                type="text"
+                value={formData.cnr}
+                onChange={(e) => setFormData({ ...formData, cnr: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
+              <input
+                type="text"
+                value={formData.client_name}
+                onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="pending">Pending</option>
+                <option value="filed">Filed</option>
+                <option value="disposed">Disposed</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 mt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Referred By</label>
+              <input
+                type="text"
+                value={formData.referred_by}
+                onChange={(e) => setFormData({ ...formData, referred_by: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Name of person who referred"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Referred By Case Number</label>
+              <input
+                type="text"
+                value={formData.referred_by_case_number}
+                onChange={(e) => setFormData({ ...formData, referred_by_case_number: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+              <textarea
+                value={formData.subject}
+                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                rows={2}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter case subject (up to 1000 characters)"
+                maxLength={1000}
+              />
+              <p className="text-xs text-gray-500 mt-1">{formData.subject.length}/1000</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Memo/Notes</label>
+              <textarea
+                value={formData.memo}
+                onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
+                rows={2}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter any memos or notes (up to 1000 characters)"
+                maxLength={1000}
+              />
+              <p className="text-xs text-gray-500 mt-1">{formData.memo.length}/1000</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Connected Case</label>
+              <input
+                type="text"
+                value={formData.connected_case}
+                onChange={(e) => setFormData({ ...formData, connected_case: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Link to connected/existing case (same client)"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Parties */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Parties</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Primary Petitioner</label>
+              <input
+                type="text"
+                value={formData.primary_petitioner}
+                onChange={(e) => setFormData({ ...formData, primary_petitioner: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Primary Respondent</label>
+              <input
+                type="text"
+                value={formData.primary_respondent}
+                onChange={(e) => setFormData({ ...formData, primary_respondent: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Petitioner Advocate</label>
+              <input
+                type="text"
+                value={formData.petitioner_adv}
+                onChange={(e) => setFormData({ ...formData, petitioner_adv: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Respondent Advocate</label>
+              <input
+                type="text"
+                value={formData.respondent_adv}
+                onChange={(e) => setFormData({ ...formData, respondent_adv: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Classification */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Classification</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <input
+                type="text"
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., Civil, Criminal"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sub Category</label>
+              <input
+                type="text"
+                value={formData.sub_category}
+                onChange={(e) => setFormData({ ...formData, sub_category: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sub-Sub Category</label>
+              <input
+                type="text"
+                value={formData.sub_sub_category}
+                onChange={(e) => setFormData({ ...formData, sub_sub_category: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Location & Judge */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Location & Judge</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">District</label>
+              <input
+                type="text"
+                value={formData.district}
+                onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
+              <input
+                type="text"
+                value={formData.purpose}
+                onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Judge Name</label>
+              <input
+                type="text"
+                value={formData.jud_name}
+                onChange={(e) => setFormData({ ...formData, jud_name: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Important Dates */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Important Dates</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Filing Date</label>
+              <input
+                type="date"
+                value={formData.filing_date}
+                onChange={(e) => setFormData({ ...formData, filing_date: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Registration Date</label>
+              <input
+                type="date"
+                value={formData.registration_date}
+                onChange={(e) => setFormData({ ...formData, registration_date: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Listing Date</label>
+              <input
+                type="date"
+                value={formData.listing_date}
+                onChange={(e) => setFormData({ ...formData, listing_date: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Return Date</label>
+              <input
+                type="date"
+                value={formData.return_date}
+                onChange={(e) => setFormData({ ...formData, return_date: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Disposal Date</label>
+              <input
+                type="date"
+                value={formData.disp_date}
+                onChange={(e) => setFormData({ ...formData, disp_date: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Disposal Type</label>
+              <input
+                type="text"
+                value={formData.disp_type}
+                onChange={(e) => setFormData({ ...formData, disp_type: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Prayer */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Prayer</h2>
+          <div>
+            <textarea
+              value={formData.prayer}
+              onChange={(e) => setFormData({ ...formData, prayer: e.target.value })}
+              rows={6}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter the prayer/relief sought..."
+            />
+          </div>
+        </div>
+
+        {/* Criminal Petition Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Criminal Petition Details</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Petition Type</label>
+              <select
+                value={formData.petition_type}
+                onChange={(e) => setFormData({ ...formData, petition_type: e.target.value as any })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select Type</option>
+                <option value="new">New Petition</option>
+                <option value="returned">Returned</option>
+                <option value="resubmitted">Resubmitted</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">SLR Number</label>
+              <input
+                type="text"
+                value={formData.slr_number}
+                onChange={(e) => setFormData({ ...formData, slr_number: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Temporary Filing Number</label>
+              <input
+                type="text"
+                value={formData.temporary_filing_number}
+                onChange={(e) => setFormData({ ...formData, temporary_filing_number: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Permanent Filing Number</label>
+              <input
+                type="text"
+                value={formData.permanent_filing_number}
+                onChange={(e) => setFormData({ ...formData, permanent_filing_number: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hearing Court</label>
+              <input
+                type="text"
+                value={formData.hearing_court}
+                onChange={(e) => setFormData({ ...formData, hearing_court: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mention Date</label>
+              <input
+                type="date"
+                value={formData.mention_date}
+                onChange={(e) => setFormData({ ...formData, mention_date: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Next Hearing Date</label>
+              <input
+                type="date"
+                value={formData.next_hearing_date}
+                onChange={(e) => setFormData({ ...formData, next_hearing_date: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hearing Date</label>
+              <input
+                type="date"
+                value={formData.hearing_date}
+                onChange={(e) => setFormData({ ...formData, hearing_date: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hearing Request Status</label>
+              <select
+                value={formData.hearing_request_status}
+                onChange={(e) => setFormData({ ...formData, hearing_request_status: e.target.value as any })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select Status</option>
+                <option value="pending">Pending</option>
+                <option value="accepted">Accepted</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Courtship Submission Type</label>
+              <select
+                value={formData.courtship_submission_type}
+                onChange={(e) => setFormData({ ...formData, courtship_submission_type: e.target.value as any })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="internal">Internal Post Office (Tapal)</option>
+                <option value="registry">Registry Judicial Office</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="courtship_submitted"
+                checked={formData.courtship_submitted}
+                onChange={(e) => setFormData({ ...formData, courtship_submitted: e.target.checked })}
+                className="w-4 h-4 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="courtship_submitted" className="text-sm font-medium text-gray-700">
+                Courtship Submitted
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="acknowledgment_received"
+                checked={formData.acknowledgment_received}
+                onChange={(e) => setFormData({ ...formData, acknowledgment_received: e.target.checked })}
+                className="w-4 h-4 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="acknowledgment_received" className="text-sm font-medium text-gray-700">
+                Acknowledgment Received
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reasons for Return</label>
+              <textarea
+                value={formData.return_reasons}
+                onChange={(e) => setFormData({ ...formData, return_reasons: e.target.value })}
+                rows={3}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter reasons if petition was returned..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fasi Comments</label>
+              <textarea
+                value={formData.fasi_comments}
+                onChange={(e) => setFormData({ ...formData, fasi_comments: e.target.value })}
+                rows={3}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Add comments..."
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Motion List Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Motion List</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Motion Type</label>
+              <select
+                value={formData.motion_type}
+                onChange={(e) => setFormData({ ...formData, motion_type: e.target.value as any })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select Motion Type</option>
+                <option value="adjournment">Adjournment Motion</option>
+                <option value="emergency">Emergency Motion</option>
+                <option value="courtship">Courtship Motion</option>
+                <option value="other">Other Motion</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Motion Reason</label>
+              <input
+                type="text"
+                value={formData.motion_reason}
+                onChange={(e) => setFormData({ ...formData, motion_reason: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., Adjournment due to illness..."
+              />
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="is_adjourned"
+                checked={formData.is_adjourned}
+                onChange={(e) => setFormData({ ...formData, is_adjourned: e.target.checked })}
+                className="w-4 h-4 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="is_adjourned" className="text-sm font-medium text-gray-700">
+                Case is Adjourned
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Post Listing Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Post Listing Details</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Post Listing Date</label>
+              <input
+                type="date"
+                value={formData.post_listing_date}
+                onChange={(e) => setFormData({ ...formData, post_listing_date: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Posting Clerk Name</label>
+              <input
+                type="text"
+                value={formData.posting_clerk_name}
+                onChange={(e) => setFormData({ ...formData, posting_clerk_name: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="advance_date"
+                checked={formData.advance_date}
+                onChange={(e) => setFormData({ ...formData, advance_date: e.target.checked })}
+                className="w-4 h-4 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="advance_date" className="text-sm font-medium text-gray-700">
+                Advance Date
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="backdated"
+                checked={formData.backdated}
+                onChange={(e) => setFormData({ ...formData, backdated: e.target.checked })}
+                className="w-4 h-4 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="backdated" className="text-sm font-medium text-gray-700">
+                Back Dated
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Backdated Reason</label>
+            <textarea
+              value={formData.backdated_reason}
+              onChange={(e) => setFormData({ ...formData, backdated_reason: e.target.value })}
+              rows={2}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Provide reason for backdating if applicable..."
+            />
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Document Requirements</label>
+            <textarea
+              value={formData.document_requirements}
+              onChange={(e) => setFormData({ ...formData, document_requirements: e.target.value })}
+              rows={3}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="List required documents for this case..."
+            />
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3">
+          <Link
+            to="/cases"
+            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+          >
+            Cancel
+          </Link>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                {isEditMode ? 'Update Case' : 'Create Case'}
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
