@@ -151,11 +151,19 @@ export default function TasksPage() {
     }
 
     try {
+      // Clean up empty strings to null for bigint fields
+      const cleanedData = {
+        ...formData,
+        case_id: formData.case_id || null,
+        assigned_to: formData.assigned_to || null,
+        due_date: formData.due_date || null,
+      };
+
       if (isEditing && editingTaskId) {
         // Update existing task
         const { error } = await supabase
           .from('tasks')
-          .update(formData)
+          .update(cleanedData)
           .eq('id', editingTaskId);
 
         if (error) throw error;
@@ -165,7 +173,7 @@ export default function TasksPage() {
         const { error } = await supabase
           .from('tasks')
           .insert({
-            ...formData,
+            ...cleanedData,
             created_by: user?.id,
           });
 
