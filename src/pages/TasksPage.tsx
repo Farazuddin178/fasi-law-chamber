@@ -89,11 +89,11 @@ export default function TasksPage() {
     try {
       const { data, error } = await supabase
         .from('cases')
-        .select('id, case_number')
+        .select('id, case_number, status, created_by, created_at, updated_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCases(data || []);
+      setCases((data || []) as Case[]);
     } catch (error: any) {
       console.error('Failed to load cases:', error);
     }
@@ -291,17 +291,27 @@ export default function TasksPage() {
     if (!newComment.trim() || !selectedTask) return;
 
     try {
-      const { error } = await supabase
+      const numericTaskId = typeof selectedTask.id === 'string' ? parseInt(selectedTask.id) : selectedTask.id;
+      console.log('Sending comment for task:', numericTaskId, 'User:', user?.id);
+      
+      const { error, data } = await supabase
         .from('task_comments')
-        .insert({
-          task_id: selectedTask.id,
-          user_id: user?.id,
-          comment: newComment.trim(),
-        });
+        .insert([
+          {
+            task_id: numericTaskId,
+            user_id: user?.id,
+            comment: newComment.trim(),
+            created_at: new Date().toISOString()
+          }
+        ]);
 
+      console.log('Insert result:', { error, data });
       if (error) throw error;
+      
       setNewComment('');
+      toast.success('Comment sent successfully');
     } catch (error: any) {
+      console.error('Send comment error:', error);
       toast.error(error.message || 'Failed to send comment');
     }
   };
@@ -310,36 +320,37 @@ export default function TasksPage() {
     if (!selectedTask) return;
 
     try {
-      // Save task response
-      const { error: responseError } = await supabase
-        .from('task_responses')
-        .insert({
-          task_id: selectedTask.id,
-          user_id: user?.id,
-          status: response,
-          reason: reason || null,
-          created_at: new Date().toISOString(),
-        });
+      const numericId = typeof selectedTask.id === 'string' ? parseInt(selectedTask.id) : selectedTask.id;
+      const newStatus = response === 'accepted' ? 'in_progress' : 'pending';
 
-      if (responseError) throw responseError;
+      // Update task status directly (no task_responses table)
+      const { error: taskError } = await supabase
+        .from('tasks')
+        .update({ status: newStatus })
+        .eq('id', numericId);
 
-      // Add system comment
-      const systemComment = response === 'accepted'
-        ? `${user?.full_name} accepted this task`
-        : `${user?.full_name} passed on this task. Reason: ${reason}`;
+      if (taskError) throw taskError;
 
-      await supabase
-        .from('task_comments')
-        .insert({
-          task_id: selectedTask.id,
-          user_id: user?.id,
-          comment: systemComment,
-        });
+      // Add system comment for visibility (optional)
+      if (user?.id) {
+        const systemComment = response === 'accepted'
+          ? `${user?.full_name || 'User'} accepted this task`
+          : `${user?.full_name || 'User'} passed on this task. Reason: ${reason || 'No reason provided'}`;
+
+        await supabase.from('task_comments').insert([
+          {
+            task_id: numericId,
+            user_id: user.id,
+            comment: systemComment,
+            created_at: new Date().toISOString()
+          }
+        ]);
+      }
 
       toast.success(response === 'accepted' ? 'Task accepted!' : 'Task passed on successfully!');
       setShowTaskResponse(false);
       setPassOnReason('');
-      loadComments(selectedTask.id);
+      loadComments(String(numericId));
     } catch (error: any) {
       toast.error(error.message || 'Failed to respond to task');
     }

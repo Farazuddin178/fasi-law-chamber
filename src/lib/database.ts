@@ -310,42 +310,14 @@ export const tasksDB = {
     status: 'accepted' | 'passed_on',
     reason?: string
   ) {
-    try {
-      const { data, error } = await supabase
-        .from('task_responses')
-        .insert([
-          {
-            task_id: taskId,
-            user_id: userId,
-            status,
-            reason: reason || null,
-            created_at: new Date().toISOString(),
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return { data, error: null };
-    } catch (error: any) {
-      return { data: null, error: error.message };
-    }
+    // task_responses table removed; perform direct task update instead
+    return { data: null, error: 'task_responses table removed; use tasks.status update' };
   },
 
   // Get task responses
   async getTaskResponses(taskId: string) {
-    try {
-      const { data, error } = await supabase
-        .from('task_responses')
-        .select('*')
-        .eq('task_id', taskId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return { data: data || [], error: null };
-    } catch (error: any) {
-      return { data: [], error: error.message };
-    }
+    // task_responses table removed; no responses to fetch
+    return { data: [], error: null };
   },
 };
 

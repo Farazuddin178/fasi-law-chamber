@@ -71,11 +71,11 @@ export default function DocumentsPage() {
     try {
       const { data, error } = await supabase
         .from('cases')
-        .select('id, case_number')
+        .select('id, case_number, status, created_by, created_at, updated_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCases(data || []);
+      setCases((data || []) as Case[]);
     } catch (error: any) {
       console.error('Failed to load cases:', error);
     }

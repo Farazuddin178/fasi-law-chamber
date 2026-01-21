@@ -63,77 +63,68 @@ export default function DashboardPage() {
     }
   }, [dashboardSearch, userCases]);
 
-  const handleTaskApprove = async (taskId: string) => {
+  const handleTaskApprove = async (taskId: string | number) => {
     try {
+      const numericId = typeof taskId === 'string' ? parseInt(taskId) : taskId;
+      console.log('Approving task ID:', numericId);
+      
       // Update task status
-      const { error: taskError } = await supabase
+      const { error: taskError, data } = await supabase
         .from('tasks')
         .update({ status: 'in_progress' })
-        .eq('id', taskId);
+        .eq('id', numericId);
 
+      console.log('Update result:', { error: taskError, data });
       if (taskError) throw taskError;
-
-      // Record the response
-      const { error: responseError } = await supabase
-        .from('task_responses')
-        .insert({
-          task_id: taskId,
-          user_id: user?.id,
-          response_type: 'accept',
-          created_at: new Date().toISOString()
-        });
-
-      if (responseError) throw responseError;
 
       toast.success('Task accepted successfully');
       loadDashboardData(); // Reload to update the UI
     } catch (error: any) {
+      console.error('Error accepting task:', error);
       toast.error(error.message || 'Failed to accept task');
     }
   };
 
-  const handleTaskPassOn = async (taskId: string) => {
+  const handleTaskPassOn = async (taskId: string | number) => {
     const reason = prompt('Please provide a reason for passing on this task:');
     if (!reason) return;
 
     try {
-      // Update task status
-      const { error: taskError } = await supabase
+      const numericId = typeof taskId === 'string' ? parseInt(taskId) : taskId;
+      console.log('Passing on task ID:', numericId);
+      
+      // Update task status back to pending for reassignment
+      const { error: taskError, data } = await supabase
         .from('tasks')
-        .update({ status: 'cancelled' })
-        .eq('id', taskId);
+        .update({ status: 'pending' })
+        .eq('id', numericId);
 
+      console.log('Update result:', { error: taskError, data });
       if (taskError) throw taskError;
 
-      // Record the response in task_responses table
-      const { error: responseError } = await supabase
-        .from('task_responses')
-        .insert({
-          task_id: taskId,
-          user_id: user?.id,
-          response_type: 'pass_on',
-          reason: reason,
-          created_at: new Date().toISOString()
-        });
-
-      if (responseError) throw responseError;
-
-      // Also add a comment for visibility
-      const { error: commentError } = await supabase
-        .from('task_comments')
-        .insert({
-          task_id: taskId,
-          user_id: user?.id,
-          comment: `PASSED ON: ${reason}`,
-          created_at: new Date().toISOString()
-        });
-
-      if (commentError) {
-        console.error('Comment error:', commentError);
-        // Don't throw - pass on was successful even if comment failed
+      // Add a comment for visibility (optional - if table exists)
+      try {
+        const { error: commentError, data: commentData } = await supabase
+          .from('task_comments')
+          .insert([
+            {
+              task_id: numericId,
+              user_id: user?.id,
+              comment: `PASSED ON: ${reason}`,
+              created_at: new Date().toISOString()
+            }
+          ]);
+        
+        if (commentError) {
+          console.warn('Comment not added:', commentError);
+        } else {
+          console.log('Comment added successfully');
+        }
+      } catch (e) {
+        console.log('Comment not added (table may not exist yet), but task was updated');
       }
 
-      toast.success('Task passed on successfully. Admin will be notified.');
+      toast.success('Pass-on recorded. Admin will review and reassign.');
       loadDashboardData(); // Reload to update the UI
     } catch (error: any) {
       console.error('Pass on error:', error);
