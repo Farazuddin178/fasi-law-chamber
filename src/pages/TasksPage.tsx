@@ -374,6 +374,28 @@ export default function TasksPage() {
     }
   };
 
+  const getTimeRemaining = (dueDate: string | null) => {
+    if (!dueDate) return null;
+    
+    const now = new Date().getTime();
+    const due = new Date(dueDate).getTime();
+    const diff = due - now;
+    
+    if (diff < 0) return { text: 'Overdue', color: 'text-red-600 font-bold', urgent: true };
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) {
+      return { text: `${days} day${days > 1 ? 's' : ''} left`, color: 'text-gray-600', urgent: false };
+    } else if (hours > 0) {
+      return { text: `${hours} hour${hours > 1 ? 's' : ''} left`, color: 'text-orange-600 font-semibold', urgent: true };
+    } else {
+      const minutes = Math.floor(diff / (1000 * 60));
+      return { text: `${minutes} min left`, color: 'text-red-600 font-bold', urgent: true };
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -536,6 +558,12 @@ export default function TasksPage() {
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
                           <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                      {task.due_date && getTimeRemaining(task.due_date) && (
+                        <div className={`flex items-center gap-1 ${getTimeRemaining(task.due_date)?.color} ${getTimeRemaining(task.due_date)?.urgent ? 'animate-pulse' : ''}`}>
+                          <Clock className="w-4 h-4" />
+                          <span className="font-semibold">{getTimeRemaining(task.due_date)?.text}</span>
                         </div>
                       )}
                     </div>

@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -22,7 +23,7 @@ import {
   Gavel,
   Bell
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface NavItem {
   name: string;
@@ -36,6 +37,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [pendingCounts, setPendingCounts] = useState<{ tasks: number; cases: number }>({ tasks: 0, cases: 0 });
+
+  useEffect(() => {
+    loadPendingCounts();
+    const interval = setInterval(loadPendingCounts, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadPendingCounts = async () => {
+    try {
+      const [tasksRes, casesRes] = await Promise.all([
+        supabase.from('tasks').select('*', { count: 'exact', head: true }).in('status', ['pending', 'in_progress']),
+        supabase.from('cases').select('*', { count: 'exact', head: true }).not('disp_type', 'is', null).eq('disp_type', '')
+      ]);
+      setPendingCounts({
+        tasks: tasksRes.count || 0,
+        cases: casesRes.count || 0
+      });
+    } catch (error) {
+      console.error('Failed to load pending counts:', error);
+    }
+  };
 
   const navItems: NavItem[] = [
     { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -130,13 +153,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-2">
             {filteredNavItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+              const badge = item.name === 'Tasks' ? pendingCounts.tasks : item.name === 'Cases' ? pendingCounts.cases : 0;
               return (
                 <Link
                   key={item.path}
                   to={item.path}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`
-                    flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 group
+                    flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 group relative
                     ${isActive
                       ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-900 font-semibold shadow-lg'
                       : 'text-slate-300 hover:bg-slate-700 hover:text-amber-400'
@@ -146,6 +170,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 >
                   <span className="flex-shrink-0">{item.icon}</span>
                   {sidebarOpen && <span className="font-medium">{item.name}</span>}
+                  {badge > 0 && sidebarOpen && (
+                    <span className="ml-auto px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
+                      {badge}
+                    </span>
+                  )}
+                  {badge > 0 && !sidebarOpen && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 text-xs font-bold bg-red-500 text-white rounded-full flex items-center justify-center">
+                      {badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}
