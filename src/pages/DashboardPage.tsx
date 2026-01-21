@@ -65,12 +65,26 @@ export default function DashboardPage() {
 
   const handleTaskApprove = async (taskId: string) => {
     try {
-      const { error } = await supabase
+      // Update task status
+      const { error: taskError } = await supabase
         .from('tasks')
         .update({ status: 'in_progress' })
         .eq('id', taskId);
 
-      if (error) throw error;
+      if (taskError) throw taskError;
+
+      // Record the response
+      const { error: responseError } = await supabase
+        .from('task_responses')
+        .insert({
+          task_id: taskId,
+          user_id: user?.id,
+          response_type: 'accept',
+          created_at: new Date().toISOString()
+        });
+
+      if (responseError) throw responseError;
+
       toast.success('Task accepted successfully');
       loadDashboardData(); // Reload to update the UI
     } catch (error: any) {
@@ -83,7 +97,7 @@ export default function DashboardPage() {
     if (!reason) return;
 
     try {
-      // Update task status and add a comment with the pass-on reason
+      // Update task status
       const { error: taskError } = await supabase
         .from('tasks')
         .update({ status: 'cancelled' })
@@ -91,7 +105,20 @@ export default function DashboardPage() {
 
       if (taskError) throw taskError;
 
-      // Add a comment explaining the pass-on
+      // Record the response in task_responses table
+      const { error: responseError } = await supabase
+        .from('task_responses')
+        .insert({
+          task_id: taskId,
+          user_id: user?.id,
+          response_type: 'pass_on',
+          reason: reason,
+          created_at: new Date().toISOString()
+        });
+
+      if (responseError) throw responseError;
+
+      // Also add a comment for visibility
       const { error: commentError } = await supabase
         .from('task_comments')
         .insert({
@@ -101,11 +128,15 @@ export default function DashboardPage() {
           created_at: new Date().toISOString()
         });
 
-      if (commentError) throw commentError;
+      if (commentError) {
+        console.error('Comment error:', commentError);
+        // Don't throw - pass on was successful even if comment failed
+      }
 
       toast.success('Task passed on successfully. Admin will be notified.');
       loadDashboardData(); // Reload to update the UI
     } catch (error: any) {
+      console.error('Pass on error:', error);
       toast.error(error.message || 'Failed to pass on task');
     }
   };

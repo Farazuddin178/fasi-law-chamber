@@ -70,6 +70,49 @@ export default function CaseFormPage() {
     advance_date: false,
     backdated: false,
     document_requirements: '',
+    // New fields matching court system
+    ia_details: [] as Array<{
+      ia_number: string;
+      filing_date: string;
+      advocate_name: string;
+      misc_paper_type: string;
+      status: string;
+      prayer: string;
+      order_date: string;
+      order: string;
+    }>,
+    usr_details: [] as Array<{
+      usr_number: string;
+      advocate_name: string;
+      usr_type: string;
+      usr_filing_date: string;
+      remarks: string;
+    }>,
+    connected_matters: '',
+    vakalath_details: [] as Array<{
+      advocate_code: string;
+      advocate_name: string;
+      p_r_no: string;
+      remarks: string;
+      file_url: string;
+    }>,
+    lower_court_details: {
+      court_name: '',
+      district: '',
+      lower_court_case_no: '',
+      honorable_judge: '',
+      date_of_judgement: ''
+    },
+    petitioners: [] as Array<{ s_no: number; name: string }>,
+    respondents: [] as Array<{ r_no: number; name: string }>,
+    orders: [] as Array<{
+      order_on: string;
+      judge_name: string;
+      date: string;
+      type: string;
+      details: string;
+      file_url: string;
+    }>
   });
 
   useEffect(() => {
@@ -173,6 +216,20 @@ export default function CaseFormPage() {
         advance_date: data.advance_date || false,
         backdated: data.backdated || false,
         document_requirements: data.document_requirements || '',
+        ia_details: data.ia_details || [],
+        usr_details: data.usr_details || [],
+        connected_matters: data.connected_matters || '',
+        vakalath_details: data.vakalath_details || [],
+        lower_court_details: data.lower_court_details || {
+          court_name: '',
+          district: '',
+          lower_court_case_no: '',
+          honorable_judge: '',
+          date_of_judgement: ''
+        },
+        petitioners: data.petitioners || [],
+        respondents: data.respondents || [],
+        orders: data.orders || []
       });
     } catch (error: any) {
       toast.error(error.message || 'Failed to load case');
@@ -218,6 +275,15 @@ export default function CaseFormPage() {
         disp_type: formData.disp_type || null,
         prayer: formData.prayer || null,
         status: formData.status,
+        // New fields
+        ia_details: formData.ia_details,
+        usr_details: formData.usr_details,
+        connected_matters: formData.connected_matters || null,
+        vakalath_details: formData.vakalath_details,
+        lower_court_details: formData.lower_court_details,
+        petitioners: formData.petitioners,
+        respondents: formData.respondents,
+        orders: formData.orders
       };
 
       if (isEditMode && id) {
@@ -743,6 +809,708 @@ export default function CaseFormPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* IA Details Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-blue-600 mb-4 border-b pb-2">IA DETAILS</h2>
+          {formData.ia_details.map((ia, index) => (
+            <div key={index} className="border border-gray-300 rounded-lg p-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">IA Number</label>
+                  <input
+                    type="text"
+                    value={ia.ia_number}
+                    onChange={(e) => {
+                      const updated = [...formData.ia_details];
+                      updated[index].ia_number = e.target.value;
+                      setFormData({ ...formData, ia_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="IA Number"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Filing Date</label>
+                  <input
+                    type="date"
+                    value={ia.filing_date}
+                    onChange={(e) => {
+                      const updated = [...formData.ia_details];
+                      updated[index].filing_date = e.target.value;
+                      setFormData({ ...formData, ia_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Advocate Name</label>
+                  <input
+                    type="text"
+                    value={ia.advocate_name}
+                    onChange={(e) => {
+                      const updated = [...formData.ia_details];
+                      updated[index].advocate_name = e.target.value;
+                      setFormData({ ...formData, ia_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Advocate Name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Misc Paper Type</label>
+                  <input
+                    type="text"
+                    value={ia.misc_paper_type}
+                    onChange={(e) => {
+                      const updated = [...formData.ia_details];
+                      updated[index].misc_paper_type = e.target.value;
+                      setFormData({ ...formData, ia_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Type"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <input
+                    type="text"
+                    value={ia.status}
+                    onChange={(e) => {
+                      const updated = [...formData.ia_details];
+                      updated[index].status = e.target.value;
+                      setFormData({ ...formData, ia_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Status"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prayer</label>
+                  <input
+                    type="text"
+                    value={ia.prayer}
+                    onChange={(e) => {
+                      const updated = [...formData.ia_details];
+                      updated[index].prayer = e.target.value;
+                      setFormData({ ...formData, ia_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Prayer details"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Order Date</label>
+                  <input
+                    type="date"
+                    value={ia.order_date}
+                    onChange={(e) => {
+                      const updated = [...formData.ia_details];
+                      updated[index].order_date = e.target.value;
+                      setFormData({ ...formData, ia_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Order</label>
+                  <input
+                    type="text"
+                    value={ia.order}
+                    onChange={(e) => {
+                      const updated = [...formData.ia_details];
+                      updated[index].order = e.target.value;
+                      setFormData({ ...formData, ia_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Order details"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = formData.ia_details.filter((_, i) => i !== index);
+                  setFormData({ ...formData, ia_details: updated });
+                }}
+                className="mt-3 text-red-600 hover:text-red-700 text-sm font-medium"
+              >
+                Remove IA
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData({
+                ...formData,
+                ia_details: [...formData.ia_details, {
+                  ia_number: '',
+                  filing_date: '',
+                  advocate_name: '',
+                  misc_paper_type: '',
+                  status: '',
+                  prayer: '',
+                  order_date: '',
+                  order: ''
+                }]
+              });
+            }}
+            className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition"
+          >
+            + Add IA Detail
+          </button>
+        </div>
+
+        {/* USR Details Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-blue-600 mb-4 border-b pb-2">USR Details</h2>
+          {formData.usr_details.map((usr, index) => (
+            <div key={index} className="border border-gray-300 rounded-lg p-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">USR Number</label>
+                  <input
+                    type="text"
+                    value={usr.usr_number}
+                    onChange={(e) => {
+                      const updated = [...formData.usr_details];
+                      updated[index].usr_number = e.target.value;
+                      setFormData({ ...formData, usr_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="USR Number"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Advocate Name</label>
+                  <input
+                    type="text"
+                    value={usr.advocate_name}
+                    onChange={(e) => {
+                      const updated = [...formData.usr_details];
+                      updated[index].advocate_name = e.target.value;
+                      setFormData({ ...formData, usr_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Advocate"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">USR Type</label>
+                  <input
+                    type="text"
+                    value={usr.usr_type}
+                    onChange={(e) => {
+                      const updated = [...formData.usr_details];
+                      updated[index].usr_type = e.target.value;
+                      setFormData({ ...formData, usr_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Type"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">USR Filing Date</label>
+                  <input
+                    type="date"
+                    value={usr.usr_filing_date}
+                    onChange={(e) => {
+                      const updated = [...formData.usr_details];
+                      updated[index].usr_filing_date = e.target.value;
+                      setFormData({ ...formData, usr_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                  <input
+                    type="text"
+                    value={usr.remarks}
+                    onChange={(e) => {
+                      const updated = [...formData.usr_details];
+                      updated[index].remarks = e.target.value;
+                      setFormData({ ...formData, usr_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Remarks"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = formData.usr_details.filter((_, i) => i !== index);
+                  setFormData({ ...formData, usr_details: updated });
+                }}
+                className="mt-3 text-red-600 hover:text-red-700 text-sm font-medium"
+              >
+                Remove USR
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData({
+                ...formData,
+                usr_details: [...formData.usr_details, {
+                  usr_number: '',
+                  advocate_name: '',
+                  usr_type: '',
+                  usr_filing_date: '',
+                  remarks: ''
+                }]
+              });
+            }}
+            className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition"
+          >
+            + Add USR Detail
+          </button>
+        </div>
+
+        {/* Connected Matters Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-blue-600 mb-4 border-b pb-2">CONNECTED MATTERS</h2>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Connected Case Number</label>
+            <input
+              type="text"
+              value={formData.connected_matters}
+              onChange={(e) => setFormData({ ...formData, connected_matters: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter connected case numbers"
+            />
+          </div>
+        </div>
+
+        {/* Vakalath Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-blue-600 mb-4 border-b pb-2">VAKALATH</h2>
+          {formData.vakalath_details.map((vak, index) => (
+            <div key={index} className="border border-gray-300 rounded-lg p-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Advocate Code</label>
+                  <input
+                    type="text"
+                    value={vak.advocate_code}
+                    onChange={(e) => {
+                      const updated = [...formData.vakalath_details];
+                      updated[index].advocate_code = e.target.value;
+                      setFormData({ ...formData, vakalath_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Code"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Advocate Name</label>
+                  <input
+                    type="text"
+                    value={vak.advocate_name}
+                    onChange={(e) => {
+                      const updated = [...formData.vakalath_details];
+                      updated[index].advocate_name = e.target.value;
+                      setFormData({ ...formData, vakalath_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">P/R No.</label>
+                  <input
+                    type="text"
+                    value={vak.p_r_no}
+                    onChange={(e) => {
+                      const updated = [...formData.vakalath_details];
+                      updated[index].p_r_no = e.target.value;
+                      setFormData({ ...formData, vakalath_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="P/R No"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                  <input
+                    type="text"
+                    value={vak.remarks}
+                    onChange={(e) => {
+                      const updated = [...formData.vakalath_details];
+                      updated[index].remarks = e.target.value;
+                      setFormData({ ...formData, vakalath_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Remarks"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">File URL</label>
+                  <input
+                    type="text"
+                    value={vak.file_url}
+                    onChange={(e) => {
+                      const updated = [...formData.vakalath_details];
+                      updated[index].file_url = e.target.value;
+                      setFormData({ ...formData, vakalath_details: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Document URL"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = formData.vakalath_details.filter((_, i) => i !== index);
+                  setFormData({ ...formData, vakalath_details: updated });
+                }}
+                className="mt-3 text-red-600 hover:text-red-700 text-sm font-medium"
+              >
+                Remove Vakalath
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData({
+                ...formData,
+                vakalath_details: [...formData.vakalath_details, {
+                  advocate_code: '',
+                  advocate_name: '',
+                  p_r_no: '',
+                  remarks: '',
+                  file_url: ''
+                }]
+              });
+            }}
+            className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition"
+          >
+            + Add Vakalath Entry
+          </button>
+        </div>
+
+        {/* Lower Court Details Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-blue-600 mb-4 border-b pb-2">LOWER COURT DETAILS</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Court Name</label>
+              <input
+                type="text"
+                value={formData.lower_court_details.court_name}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  lower_court_details: { ...formData.lower_court_details, court_name: e.target.value }
+                })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Court Name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">District</label>
+              <input
+                type="text"
+                value={formData.lower_court_details.district}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  lower_court_details: { ...formData.lower_court_details, district: e.target.value }
+                })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="District"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Lower Court Case No.</label>
+              <input
+                type="text"
+                value={formData.lower_court_details.lower_court_case_no}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  lower_court_details: { ...formData.lower_court_details, lower_court_case_no: e.target.value }
+                })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Case Number"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hon'ble Judge</label>
+              <input
+                type="text"
+                value={formData.lower_court_details.honorable_judge}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  lower_court_details: { ...formData.lower_court_details, honorable_judge: e.target.value }
+                })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Judge Name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Judgement</label>
+              <input
+                type="date"
+                value={formData.lower_court_details.date_of_judgement}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  lower_court_details: { ...formData.lower_court_details, date_of_judgement: e.target.value }
+                })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Petitioners Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-blue-600 mb-4 border-b pb-2">PETITIONER(S)</h2>
+          {formData.petitioners.map((pet, index) => (
+            <div key={index} className="flex gap-4 mb-3">
+              <div className="w-24">
+                <label className="block text-sm font-medium text-gray-700 mb-1">S.No</label>
+                <input
+                  type="number"
+                  value={pet.s_no}
+                  onChange={(e) => {
+                    const updated = [...formData.petitioners];
+                    updated[index].s_no = parseInt(e.target.value) || 0;
+                    setFormData({ ...formData, petitioners: updated });
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="#"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Petitioner(S) Name</label>
+                <input
+                  type="text"
+                  value={pet.name}
+                  onChange={(e) => {
+                    const updated = [...formData.petitioners];
+                    updated[index].name = e.target.value;
+                    setFormData({ ...formData, petitioners: updated });
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Petitioner Name"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = formData.petitioners.filter((_, i) => i !== index);
+                  setFormData({ ...formData, petitioners: updated });
+                }}
+                className="mt-7 text-red-600 hover:text-red-700"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData({
+                ...formData,
+                petitioners: [...formData.petitioners, { s_no: formData.petitioners.length + 1, name: '' }]
+              });
+            }}
+            className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition"
+          >
+            + Add Petitioner
+          </button>
+        </div>
+
+        {/* Respondents Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-blue-600 mb-4 border-b pb-2">RESPONDENT(S)</h2>
+          {formData.respondents.map((res, index) => (
+            <div key={index} className="flex gap-4 mb-3">
+              <div className="w-24">
+                <label className="block text-sm font-medium text-gray-700 mb-1">R.No</label>
+                <input
+                  type="number"
+                  value={res.r_no}
+                  onChange={(e) => {
+                    const updated = [...formData.respondents];
+                    updated[index].r_no = parseInt(e.target.value) || 0;
+                    setFormData({ ...formData, respondents: updated });
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="#"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Respondent(S) Name</label>
+                <input
+                  type="text"
+                  value={res.name}
+                  onChange={(e) => {
+                    const updated = [...formData.respondents];
+                    updated[index].name = e.target.value;
+                    setFormData({ ...formData, respondents: updated });
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Respondent Name"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = formData.respondents.filter((_, i) => i !== index);
+                  setFormData({ ...formData, respondents: updated });
+                }}
+                className="mt-7 text-red-600 hover:text-red-700"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData({
+                ...formData,
+                respondents: [...formData.respondents, { r_no: formData.respondents.length + 1, name: '' }]
+              });
+            }}
+            className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition"
+          >
+            + Add Respondent
+          </button>
+        </div>
+
+        {/* Orders Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-blue-600 mb-4 border-b pb-2">ORDERS</h2>
+          {formData.orders.map((order, index) => (
+            <div key={index} className="border border-gray-300 rounded-lg p-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Order On</label>
+                  <input
+                    type="text"
+                    value={order.order_on}
+                    onChange={(e) => {
+                      const updated = [...formData.orders];
+                      updated[index].order_on = e.target.value;
+                      setFormData({ ...formData, orders: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Order Subject"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Judge Name</label>
+                  <input
+                    type="text"
+                    value={order.judge_name}
+                    onChange={(e) => {
+                      const updated = [...formData.orders];
+                      updated[index].judge_name = e.target.value;
+                      setFormData({ ...formData, orders: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Judge Name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={order.date}
+                    onChange={(e) => {
+                      const updated = [...formData.orders];
+                      updated[index].date = e.target.value;
+                      setFormData({ ...formData, orders: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <input
+                    type="text"
+                    value={order.type}
+                    onChange={(e) => {
+                      const updated = [...formData.orders];
+                      updated[index].type = e.target.value;
+                      setFormData({ ...formData, orders: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Order Type"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Details</label>
+                  <input
+                    type="text"
+                    value={order.details}
+                    onChange={(e) => {
+                      const updated = [...formData.orders];
+                      updated[index].details = e.target.value;
+                      setFormData({ ...formData, orders: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Order Details"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">File URL</label>
+                  <input
+                    type="text"
+                    value={order.file_url}
+                    onChange={(e) => {
+                      const updated = [...formData.orders];
+                      updated[index].file_url = e.target.value;
+                      setFormData({ ...formData, orders: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="PDF Link"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = formData.orders.filter((_, i) => i !== index);
+                  setFormData({ ...formData, orders: updated });
+                }}
+                className="mt-3 text-red-600 hover:text-red-700 text-sm font-medium"
+              >
+                Remove Order
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData({
+                ...formData,
+                orders: [...formData.orders, {
+                  order_on: '',
+                  judge_name: '',
+                  date: '',
+                  type: '',
+                  details: '',
+                  file_url: ''
+                }]
+              });
+            }}
+            className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition"
+          >
+            + Add Order
+          </button>
         </div>
 
         {/* Motion List Section */}
