@@ -461,16 +461,13 @@ Generated: ${new Date().toLocaleString()}
           <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Petitioners</h2>
           <div className="space-y-2">
             {toArray<any>(caseData.petitioners).map((p, idx: number) => (
-              <div key={idx} className="flex justify-between items-center">
-                <div className="text-gray-900">{typeof p === 'string' ? p : JSON.stringify(p)}</div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => removeArrayEntry('petitioners', idx)} className="text-red-600">Remove</button>
-                </div>
+              <div key={idx} className="text-gray-900">
+                {typeof p === 'string' ? p : JSON.stringify(p)}
               </div>
             ))}
-            <div>
-              <button onClick={() => addSimpleEntry('petitioners', 'Enter petitioner name:')} className="px-3 py-1 bg-blue-600 text-white rounded">Add Petitioner</button>
-            </div>
+            {toArray<any>(caseData.petitioners).length === 0 && (
+              <p className="text-gray-500">No petitioners listed</p>
+            )}
           </div>
         </div>
 
@@ -478,16 +475,13 @@ Generated: ${new Date().toLocaleString()}
           <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Respondents</h2>
           <div className="space-y-2">
             {toArray<any>(caseData.respondents).map((p, idx: number) => (
-              <div key={idx} className="flex justify-between items-center">
-                <div className="text-gray-900">{typeof p === 'string' ? p : JSON.stringify(p)}</div>
-                <div>
-                  <button onClick={() => removeArrayEntry('respondents', idx)} className="text-red-600">Remove</button>
-                </div>
+              <div key={idx} className="text-gray-900">
+                {typeof p === 'string' ? p : JSON.stringify(p)}
               </div>
             ))}
-            <div>
-              <button onClick={() => addSimpleEntry('respondents', 'Enter respondent name:')} className="px-3 py-1 bg-blue-600 text-white rounded">Add Respondent</button>
-            </div>
+            {toArray<any>(caseData.respondents).length === 0 && (
+              <p className="text-gray-500">No respondents listed</p>
+            )}
           </div>
         </div>
 
@@ -495,16 +489,13 @@ Generated: ${new Date().toLocaleString()}
           <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">IA Details</h2>
           <div className="space-y-2">
             {toArray<any>(caseData.ia_details).map((p, idx: number) => (
-              <div key={idx} className="flex justify-between items-center">
-                <div className="text-gray-900">{typeof p === 'string' ? p : JSON.stringify(p)}</div>
-                <div>
-                  <button onClick={() => removeArrayEntry('ia_details', idx)} className="text-red-600">Remove</button>
-                </div>
+              <div key={idx} className="text-gray-900">
+                {typeof p === 'string' ? p : JSON.stringify(p)}
               </div>
             ))}
-            <div>
-              <button onClick={() => addObjectEntry('ia_details', { title: '', date: '' })} className="px-3 py-1 bg-blue-600 text-white rounded">Add IA Detail</button>
-            </div>
+            {toArray<any>(caseData.ia_details).length === 0 && (
+              <p className="text-gray-500">No IA details available</p>
+            )}
           </div>
         </div>
 
@@ -512,16 +503,13 @@ Generated: ${new Date().toLocaleString()}
           <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Orders</h2>
           <div className="space-y-2">
             {toArray<any>(caseData.orders).map((o, idx: number) => (
-              <div key={idx} className="flex justify-between items-center">
-                <div className="text-gray-900">{typeof o === 'string' ? o : JSON.stringify(o)}</div>
-                <div>
-                  <button onClick={() => removeArrayEntry('orders', idx)} className="text-red-600">Remove</button>
-                </div>
+              <div key={idx} className="text-gray-900">
+                {typeof o === 'string' ? o : JSON.stringify(o)}
               </div>
             ))}
-            <div>
-              <button onClick={() => addObjectEntry('orders', { title: '', date: '' })} className="px-3 py-1 bg-blue-600 text-white rounded">Add Order</button>
-            </div>
+            {toArray<any>(caseData.orders).length === 0 && (
+              <p className="text-gray-500">No orders available</p>
+            )}
           </div>
         </div>
 
@@ -531,15 +519,12 @@ Generated: ${new Date().toLocaleString()}
             {toArray<any>(caseData.other_documents).map((d, idx: number) => (
               <div key={idx} className="flex justify-between items-center">
                 <div className="text-gray-900">{d.file_name || d}</div>
-                <div>
-                  <a className="text-blue-600 hover:underline mr-3" href={d.file_path || '#'} target="_blank" rel="noreferrer">Open</a>
-                  <button onClick={() => removeArrayEntry('other_documents', idx)} className="text-red-600">Remove</button>
-                </div>
+                <a className="text-blue-600 hover:underline" href={d.file_path || '#'} target="_blank" rel="noreferrer">Open</a>
               </div>
             ))}
-            <div>
-              <button onClick={() => addObjectEntry('other_documents', { file_name: '', file_path: '' })} className="px-3 py-1 bg-blue-600 text-white rounded">Add Document (enter name & URL)</button>
-            </div>
+            {toArray<any>(caseData.other_documents).length === 0 && (
+              <p className="text-gray-500">No documents available</p>
+            )}
           </div>
         </div>
       </div>

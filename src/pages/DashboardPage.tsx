@@ -5,6 +5,23 @@ import { FolderOpen, Gavel, FileText, Users, CheckCircle, Clock, Eye, AlertCircl
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 
+// Helper function to calculate time remaining
+const getTimeRemaining = (dueDate: string) => {
+  const now = new Date();
+  const due = new Date(dueDate);
+  const diff = due.getTime() - now.getTime();
+  
+  if (diff < 0) return { text: 'Overdue', color: 'text-red-600', urgent: true };
+  
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(hours / 24);
+  
+  if (hours < 6) return { text: `${hours}h remaining`, color: 'text-red-600', urgent: true };
+  if (hours < 24) return { text: `${hours}h remaining`, color: 'text-orange-600', urgent: true };
+  if (days < 2) return { text: `${days} day remaining`, color: 'text-yellow-600', urgent: false };
+  return { text: `${days} days remaining`, color: 'text-gray-600', urgent: false };
+};
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState({
@@ -21,6 +38,7 @@ export default function DashboardPage() {
   const [userCases, setUserCases] = useState<any[]>([]);
   const [filteredCases, setFilteredCases] = useState<any[]>([]);
   const [userTasks, setUserTasks] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
   const [dashboardSearch, setDashboardSearch] = useState('');
@@ -44,6 +62,53 @@ export default function DashboardPage() {
       setFilteredCases(userCases);
     }
   }, [dashboardSearch, userCases]);
+
+  const handleTaskApprove = async (taskId: string) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status: 'in_progress' })
+        .eq('id', taskId);
+
+      if (error) throw error;
+      toast.success('Task accepted successfully');
+      loadDashboardData(); // Reload to update the UI
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to accept task');
+    }
+  };
+
+  const handleTaskPassOn = async (taskId: string) => {
+    const reason = prompt('Please provide a reason for passing on this task:');
+    if (!reason) return;
+
+    try {
+      // Update task status and add a comment with the pass-on reason
+      const { error: taskError } = await supabase
+        .from('tasks')
+        .update({ status: 'cancelled' })
+        .eq('id', taskId);
+
+      if (taskError) throw taskError;
+
+      // Add a comment explaining the pass-on
+      const { error: commentError } = await supabase
+        .from('task_comments')
+        .insert({
+          task_id: taskId,
+          user_id: user?.id,
+          comment: `PASSED ON: ${reason}`,
+          created_at: new Date().toISOString()
+        });
+
+      if (commentError) throw commentError;
+
+      toast.success('Task passed on successfully. Admin will be notified.');
+      loadDashboardData(); // Reload to update the UI
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to pass on task');
+    }
+  };
 
   // Announcements are now managed on the dedicated Announcements page
   // This section is for displaying announcements on dashboard only
@@ -75,7 +140,7 @@ export default function DashboardPage() {
         // For admin and regular users, show general data
         const [casesRes, tasksRes] = await Promise.all([
           supabase.from('cases').select('*').limit(5),
-          supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(5)
+          supabase.from('tasks').select('*').eq('assigned_to', user?.id).order('created_at', { ascending: false }).limit(10)
         ]);
 
         // Get all system stats for admin/users
@@ -102,8 +167,43 @@ export default function DashboardPage() {
         setUserCases(casesRes.data || []);
         setUserTasks(tasksRes.data || []);
       }
-    } catch (error) {
+
+      // Load announcements based on user role
+      let announcementsQuery = supabase
+        .from('announcements')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      // Filter announcements based on visibility
+      if (user?.role !== 'admin' && user?.role !== 'restricted_admin') {
+        announcementsQuery = announcementsQuery.eq('visible_to', 'all_users');
+      }
+      
+      const { data: announcementsData } = await announcementsQuery;
+      setAnnouncements(announcementsData || []);
+    } catch (error: any) {
       console.error('Error loading dashboard data:', error);
+    }
+  };
+
+  const getTimeRemaining = (dueDate: string) => {
+    const now = new Date().getTime();
+    const due = new Date(dueDate).getTime();
+    const diff = due - now;
+    
+    if (diff < 0) return { text: 'Overdue', color: 'text-red-600 font-bold', urgent: true };
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) {
+      return { text: `${days} day${days > 1 ? 's' : ''} left`, color: 'text-gray-600', urgent: false };
+    } else if (hours > 0) {
+      return { text: `${hours} hour${hours > 1 ? 's' : ''} left`, color: 'text-orange-600 font-semibold', urgent: true };
+    } else {
+      const minutes = Math.floor(diff / (1000 * 60));
+      return { text: `${minutes} min left`, color: 'text-red-600 font-bold', urgent: true };
     }
   };
 
@@ -250,15 +350,42 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Announcement Info - View Only */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-        <div className="flex items-center space-x-3">
-          <Bell className="w-6 h-6 text-blue-600" />
-          <div>
-            <h2 className="font-bold text-gray-900">Announcements</h2>
-            <p className="text-sm text-gray-600">View announcements on the <Link to="/announcements" className="text-blue-600 hover:underline">Announcements page</Link></p>
+      {/* Announcements Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <Bell className="w-6 h-6 text-blue-600" />
+            <h2 className="text-xl font-bold text-gray-900">Recent Announcements</h2>
           </div>
+          <Link to="/announcements" className="text-blue-600 hover:underline text-sm">View All →</Link>
         </div>
+
+        {announcements.length > 0 ? (
+          <div className="space-y-4">
+            {announcements.map((announcement) => (
+              <div key={announcement.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-semibold text-gray-900">{announcement.title}</h3>
+                  <span className="text-xs text-gray-500">
+                    {new Date(announcement.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <p className="text-gray-700 text-sm whitespace-pre-wrap line-clamp-3">{announcement.content}</p>
+                <Link
+                  to="/announcements"
+                  className="text-blue-600 hover:underline text-sm mt-2 inline-block"
+                >
+                  Read more →
+                </Link>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <Bell className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+            <p>No announcements at this time</p>
+          </div>
+        )}
       </div>
 
       {/* My Tasks Section */}

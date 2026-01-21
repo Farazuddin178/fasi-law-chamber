@@ -79,6 +79,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   const filteredNavItems = navItems.filter(item => {
+    // For viewers, only show Analytics, Messages, and Expenses
+    if (user?.role === 'viewer') {
+      return ['Analytics', 'Messages', 'Expenses'].includes(item.name);
+    }
+    
+    // For other users, hide admin-only items if not admin
     if (item.adminOnly && user?.role !== 'admin') {
       return false;
     }
