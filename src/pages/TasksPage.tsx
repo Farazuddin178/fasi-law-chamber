@@ -170,14 +170,34 @@ export default function TasksPage() {
         toast.success('Task updated successfully');
       } else {
         // Create new task
-        const { error } = await supabase
+        const { error, data } = await supabase
           .from('tasks')
           .insert({
             ...cleanedData,
             created_by: user?.id,
-          });
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+        
+        // Send notification if task is assigned to someone
+        if (cleanedData.assigned_to && data) {
+          const assignedUser = users.find(u => u.id === cleanedData.assigned_to);
+          if (assignedUser?.phone_number) {
+            // Get FCM tokens for assigned user and send notification
+            const { data: tokens } = await supabase
+              .from('fcm_tokens')
+              .select('token')
+              .eq('user_id', cleanedData.assigned_to);
+
+            if (tokens && tokens.length > 0) {
+              console.log('Sending notification to', assignedUser.full_name);
+              // Note: Actual sending requires backend - for now just log
+            }
+          }
+        }
+
         toast.success('Task created successfully');
       }
 

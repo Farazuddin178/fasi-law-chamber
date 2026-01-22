@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, supabase } from '@/lib/supabase';
+import { getFCMToken, setupMessageListener } from '@/lib/firebase';
+import { notificationService } from '@/lib/notificationService';
 import toast from 'react-hot-toast';
 
 interface AuthContextType {
@@ -24,12 +26,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const savedLoginLogId = localStorage.getItem('login_log_id');
     
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      const userData = JSON.parse(savedUser);
+      setUser(userData);
       setLoginLogId(savedLoginLogId);
+      
+      // Initialize FCM and notifications
+      initializeFCM(userData.id);
     }
     
     setLoading(false);
   }, []);
+
+  const initializeFCM = async (userId: string) => {
+    try {
+      // Request notification permission using browser Notification API
+      if ('Notification' in window && Notification.permission === 'default') {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          console.log('Browser notification permission granted');
+        }
+      }
+
+      // Register service worker (optional for Firebase)
+      if ('serviceWorker' in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          console.log('Service Worker registered:', reg);
+        } catch (err) {
+          console.log('Service Worker registration not critical:', err);
+        }
+      }
+
+      // Try to get FCM token and store it
+      const token = await getFCMToken();
+      if (token) {
+        await notificationService.storeFCMToken(userId, token);
+        console.log('FCM token stored for user');
+      } else {
+        console.log('Using browser Notification API for notifications');
+      }
+
+      // Setup message listener
+      setupMessageListener((payload) => {
+        const { notification } = payload;
+        if (notification) {
+          // Show native browser notification
+          new Notification(notification.title || 'Notification', {
+            body: notification.body,
+            icon: '/logo.png',
+          });
+          toast.success(notification.body || notification.title);
+        }
+      });
+    } catch (error) {
+      console.error('Notification setup error (not critical):', error);
+    }
+  };
 
   const login = async (email: string, password: string) => {
     try {
