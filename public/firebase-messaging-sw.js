@@ -3,12 +3,12 @@ importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_AUTH_DOMAIN',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_STORAGE_BUCKET',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: "AIzaSyA1CaZGqUyouFvh8OEWVttQA2EBpVS74Ys",
+  authDomain: "fasi-law-chamber.firebaseapp.com",
+  projectId: "fasi-law-chamber",
+  storageBucket: "fasi-law-chamber.firebasestorage.app",
+  messagingSenderId: "566428539789",
+  appId: "1:566428539789:web:a5c29400e2f30ac51fbbc4",
 });
 
 const messaging = firebase.messaging();
