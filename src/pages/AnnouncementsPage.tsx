@@ -106,6 +106,16 @@ export default function AnnouncementsPage() {
           });
 
         if (error) throw error;
+        
+        // Send notification for new announcement
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('📢 New Announcement', {
+            body: formData.title,
+            icon: '/logo.png',
+            tag: 'announcement-notification',
+          });
+        }
+        
         toast.success('Announcement created successfully');
       }
 

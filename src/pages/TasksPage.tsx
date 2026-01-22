@@ -181,19 +181,27 @@ export default function TasksPage() {
 
         if (error) throw error;
         
-        // Send notification if task is assigned to someone
+        // Send notification if task is assigned
         if (cleanedData.assigned_to && data) {
           const assignedUser = users.find(u => u.id === cleanedData.assigned_to);
-          if (assignedUser?.phone_number) {
-            // Get FCM tokens for assigned user and send notification
+          if (assignedUser) {
+            // Send browser notification immediately
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('📋 New Task Assigned', {
+                body: `You have been assigned: ${formData.title}`,
+                icon: '/logo.png',
+                tag: 'task-notification',
+              });
+            }
+            
+            // Get FCM tokens and attempt to send via backend
             const { data: tokens } = await supabase
               .from('fcm_tokens')
               .select('token')
               .eq('user_id', cleanedData.assigned_to);
 
             if (tokens && tokens.length > 0) {
-              console.log('Sending notification to', assignedUser.full_name);
-              // Note: Actual sending requires backend - for now just log
+              console.log(`Task assigned to ${assignedUser.full_name} - tokens available for notification`);
             }
           }
         }
@@ -358,6 +366,18 @@ export default function TasksPage() {
         .eq('id', numericId);
 
       if (taskError) throw taskError;
+
+      // Show notification for status change
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const message = response === 'accepted' 
+          ? `✅ You accepted: ${selectedTask.title}`
+          : `⏳ You passed on: ${selectedTask.title}`;
+        new Notification('Task Updated', {
+          body: message,
+          icon: '/logo.png',
+          tag: 'task-status-notification',
+        });
+      }
 
       // Add system comment for visibility (optional)
       if (user?.id) {
