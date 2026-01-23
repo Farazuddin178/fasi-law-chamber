@@ -38,13 +38,16 @@ export default function DashboardPage() {
   const [userCases, setUserCases] = useState<any[]>([]);
   const [filteredCases, setFilteredCases] = useState<any[]>([]);
   const [userTasks, setUserTasks] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isFullAdmin, setIsFullAdmin] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
   const [dashboardSearch, setDashboardSearch] = useState('');
 
   useEffect(() => {
     setIsAdmin(user?.role === 'admin' || user?.role === 'restricted_admin');
+    setIsFullAdmin(user?.role === 'admin');
     setIsViewer(user?.role === 'viewer');
     loadDashboardData();
   }, [user]);
@@ -136,9 +139,26 @@ export default function DashboardPage() {
   // This section is for displaying announcements on dashboard only
 
   const loadDashboardData = async () => {
+    const isAdminRole = user?.role === 'admin' || user?.role === 'restricted_admin';
+    const isFullAdminRole = user?.role === 'admin';
+    const isViewerRole = user?.role === 'viewer';
+
+    setIsAdmin(isAdminRole);
+    setIsFullAdmin(isFullAdminRole);
+    setIsViewer(isViewerRole);
+
     try {
+      // Load users first
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('*')
+        .eq('is_active', true)
+        .order('full_name');
+      
+      setUsers(usersData || []);
+
       // For viewers, show all system stats
-      if (user?.role === 'viewer') {
+      if (isViewerRole) {
         const [casesRes, tasksRes, docsRes, usersRes] = await Promise.all([
           supabase.from('cases').select('*', { count: 'exact', head: true }),
           supabase.from('tasks').select('*', { count: 'exact', head: true }),
@@ -160,9 +180,20 @@ export default function DashboardPage() {
         });
       } else {
         // For admin and regular users, show general data
+        let tasksQuery = supabase
+          .from('tasks')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        // If admin/restricted_admin, show all tasks; if regular user, show only assigned to them
+        if (!isAdminRole) {
+          tasksQuery = tasksQuery.eq('assigned_to', user?.id);
+        }
+
         const [casesRes, tasksRes] = await Promise.all([
           supabase.from('cases').select('*').limit(5),
-          supabase.from('tasks').select('*').eq('assigned_to', user?.id).order('created_at', { ascending: false }).limit(10)
+          tasksQuery
         ]);
 
         // Get all system stats for admin/users
@@ -198,7 +229,7 @@ export default function DashboardPage() {
         .limit(3);
 
       // Filter announcements based on visibility
-      if (user?.role !== 'admin' && user?.role !== 'restricted_admin') {
+      if (!isAdminRole) {
         announcementsQuery = announcementsQuery.eq('visible_to', 'all_users');
       }
       
@@ -410,12 +441,14 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* My Tasks Section */}
+      {/* My Tasks / Tasks Assigned Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
             <CheckCircle className="w-6 h-6 text-green-600" />
-            <h2 className="text-xl font-bold text-gray-900">My Tasks</h2>
+            <h2 className="text-xl font-bold text-gray-900">
+              {isAdmin ? 'Tasks Assigned To Team' : 'My Tasks'}
+            </h2>
           </div>
           <Link to="/tasks" className="text-blue-600 hover:underline text-sm">View All Tasks →</Link>
         </div>
@@ -425,12 +458,26 @@ export default function DashboardPage() {
             {userTasks.slice(0, 5).map((task) => {
               const linkedCase = userCases.find(c => c.id === task.case_id);
               const timeRemaining = task.due_date ? getTimeRemaining(task.due_date) : null;
+              const assignedUser = users.find(u => u.id === task.assigned_to);
               
               return (
                 <div key={task.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{task.title}</h3>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-gray-900">{task.title}</h3>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          task.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                          task.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          task.status === 'unaccepted' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {task.status === 'in_progress' ? 'IN PROGRESS' :
+                           task.status === 'unaccepted' ? 'DECLINED' :
+                           task.status.toUpperCase()}
+                        </span>
+                      </div>
                       {task.description && (
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">{task.description}</p>
                       )}
@@ -446,6 +493,12 @@ export default function DashboardPage() {
                   </div>
                   
                   <div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-3">
+                    {assignedUser && (
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium">{isAdmin ? 'Assigned to:' : 'You'}</span>
+                        {isAdmin && <span className="text-blue-700 font-semibold">{assignedUser.full_name}</span>}
+                      </div>
+                    )}
                     {linkedCase && (
                       <div className="flex items-center gap-1">
                         <span className="font-medium">Case:</span>
@@ -465,8 +518,19 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
+                  
+                  {task.status === 'pending' && (
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">
+                      ⏳ Pending Acceptance
+                    </span>
+                  )}
+                  {task.status === 'in_progress' && (
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-300">
+                      ✓ In Progress
+                    </span>
+                  )}
 
-                  {user?.role === 'restricted_admin' && task.assigned_to === user.id && task.status === 'pending' && (
+                  {!isAdmin && task.assigned_to === user?.id && task.status === 'pending' && (
                     <div className="flex gap-2 pt-3 border-t border-gray-200">
                       <button
                         onClick={() => handleTaskApprove(task.id)}
@@ -491,10 +555,97 @@ export default function DashboardPage() {
         ) : (
           <div className="text-center py-8 text-gray-500">
             <CheckCircle className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-            <p>No tasks assigned to you</p>
+            <p>{isAdmin ? 'No tasks assigned to team members' : 'No tasks assigned to you'}</p>
           </div>
         )}
       </div>
+
+      {/* Unaccepted Tasks Section - For Full Admin Only */}
+      {isFullAdmin && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 border-l-4 border-l-orange-500">
+          <div className="flex items-center space-x-3 mb-6">
+            <AlertCircle className="w-6 h-6 text-orange-600" />
+            <h2 className="text-xl font-bold text-gray-900">Unaccepted Tasks</h2>
+            <span className="ml-auto inline-flex items-center justify-center px-3 py-1 text-sm font-bold text-orange-700 bg-orange-100 rounded-full">
+              {userTasks.filter(t => t.status === 'unaccepted').length}
+            </span>
+          </div>
+
+          {userTasks.filter(t => t.status === 'unaccepted').length > 0 ? (
+            <div className="space-y-4">
+              {userTasks.filter(t => t.status === 'unaccepted').map((task) => {
+                const linkedCase = userCases.find(c => c.id === task.case_id);
+                const timeRemaining = task.due_date ? getTimeRemaining(task.due_date) : null;
+                const assignedUser = users.find(u => u.id === task.assigned_to);
+                const daysSinceAssignment = task.created_at ? 
+                  Math.floor((new Date().getTime() - new Date(task.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                
+                return (
+                  <div key={task.id} className="border border-orange-200 rounded-lg p-4 bg-orange-50 hover:shadow-md transition">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900">{task.title}</h3>
+                        {task.description && (
+                          <p className="text-sm text-gray-600 mt-1 line-clamp-2">{task.description}</p>
+                        )}
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ml-2 ${
+                        task.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                        task.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                        task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {task.priority.toUpperCase()}
+                      </span>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-3">
+                      {assignedUser && (
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">Assigned to:</span>
+                          <span className="font-semibold text-gray-900">{assignedUser.full_name}</span>
+                        </div>
+                      )}
+                      {linkedCase && (
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">Case:</span>
+                          <span>{linkedCase.case_number}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1 text-orange-700 font-semibold">
+                        <Clock className="w-4 h-4" />
+                        <span>Waiting for {daysSinceAssignment} {daysSinceAssignment === 1 ? 'day' : 'days'}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-orange-200">
+                      <p className="text-xs text-orange-700 mb-3">
+                        ⚠️ This task has not been accepted by the assigned team member. Consider reassigning or following up.
+                      </p>
+                      <button
+                        onClick={() => {
+                          const reason = prompt(`Reassign task "${task.title}" - Enter reason:`);
+                          if (reason) {
+                            toast.success('Task flagged for reassignment. You can reassign from Tasks page.');
+                          }
+                        }}
+                        className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition text-sm"
+                      >
+                        Mark for Reassignment
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <CheckCircle className="w-12 h-12 mx-auto mb-2 text-green-400" />
+              <p>All tasks have been accepted by team members</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Task List on Dashboard */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

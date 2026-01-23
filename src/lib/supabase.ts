@@ -70,8 +70,9 @@ export interface Task {
   description?: string;
   assigned_to?: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'unaccepted';
   due_date?: string;
+  decline_reason?: string;
   created_by: string;
   created_at: string;
   updated_at: string;

@@ -180,7 +180,7 @@ export default function AnnouncementsPage() {
           <h1 className="text-3xl font-bold text-gray-900">Announcements</h1>
           <p className="text-gray-600 mt-1">View announcements for team members</p>
         </div>
-        {user?.role === 'admin' && (
+        {(user?.role === 'admin' || user?.role === 'restricted_admin') && (
           <button
             onClick={() => {
               resetForm();
@@ -226,7 +226,7 @@ export default function AnnouncementsPage() {
                     </span>
                   </div>
                 </div>
-                {user?.role === 'admin' && (
+                {(user?.role === 'admin' || user?.role === 'restricted_admin') && (
                   <div className="flex gap-2 ml-4">
                     <button
                       onClick={() => handleEdit(announcement)}
@@ -252,8 +252,8 @@ export default function AnnouncementsPage() {
         )}
       </div>
 
-      {/* Create/Edit Modal - Only for admins */}
-      {showModal && user?.role === 'admin' && (
+      {/* Create/Edit Modal - Only for admins and restricted admins */}
+      {showModal && (user?.role === 'admin' || user?.role === 'restricted_admin') && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">

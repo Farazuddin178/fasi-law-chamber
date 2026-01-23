@@ -35,7 +35,8 @@ export default function TasksPage() {
     case_id: '',
     assigned_to: '',
     priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
-    status: 'pending' as 'pending' | 'in_progress' | 'completed' | 'cancelled',
+    // Status can also be 'unaccepted' when a task is declined
+    status: 'pending' as 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'unaccepted',
     due_date: '',
   });
   const [isEditing, setIsEditing] = useState(false);
@@ -114,6 +115,11 @@ export default function TasksPage() {
 
   const applyFilters = () => {
     let filtered = [...tasks];
+
+    // Hide unaccepted tasks from restricted admins (only show to full admins)
+    if (user?.role === 'restricted_admin') {
+      filtered = filtered.filter(task => task.status !== 'unaccepted');
+    }
 
     // Filter by search term
     if (searchTerm.trim()) {
@@ -233,6 +239,12 @@ export default function TasksPage() {
   };
 
   const handleDelete = async (id: string) => {
+    // Only admins can delete tasks, not restricted admins
+    if (user?.role !== 'admin') {
+      toast.error('You do not have permission to delete tasks');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this task?')) return;
 
     try {
@@ -357,12 +369,27 @@ export default function TasksPage() {
 
     try {
       const numericId = typeof selectedTask.id === 'string' ? parseInt(selectedTask.id) : selectedTask.id;
-      const newStatus = response === 'accepted' ? 'in_progress' : 'pending';
+      
+      let updateData: any = {};
+      
+      if (response === 'accepted') {
+        // When accepted, set status to in_progress
+        updateData = { 
+          status: 'in_progress',
+          decline_reason: null // Clear any previous decline reason
+        };
+      } else {
+        // When passed on/denied, set status to unaccepted with reason
+        updateData = { 
+          status: 'unaccepted',
+          decline_reason: reason || 'No reason provided'
+        };
+      }
 
-      // Update task status directly (no task_responses table)
+      // Update task status
       const { error: taskError } = await supabase
         .from('tasks')
-        .update({ status: newStatus })
+        .update(updateData)
         .eq('id', numericId);
 
       if (taskError) throw taskError;
@@ -371,7 +398,7 @@ export default function TasksPage() {
       if ('Notification' in window && Notification.permission === 'granted') {
         const message = response === 'accepted' 
           ? `✅ You accepted: ${selectedTask.title}`
-          : `⏳ You passed on: ${selectedTask.title}`;
+          : `❌ You declined: ${selectedTask.title}`;
         new Notification('Task Updated', {
           body: message,
           icon: '/logo.png',
@@ -379,11 +406,11 @@ export default function TasksPage() {
         });
       }
 
-      // Add system comment for visibility (optional)
+      // Add system comment for visibility
       if (user?.id) {
         const systemComment = response === 'accepted'
-          ? `${user?.full_name || 'User'} accepted this task`
-          : `${user?.full_name || 'User'} passed on this task. Reason: ${reason || 'No reason provided'}`;
+          ? `${user?.full_name || 'User'} accepted this task and started working on it`
+          : `${user?.full_name || 'User'} declined this task. Reason: ${reason || 'No reason provided'}`;
 
         await supabase.from('task_comments').insert([
           {
@@ -395,10 +422,12 @@ export default function TasksPage() {
         ]);
       }
 
-      toast.success(response === 'accepted' ? 'Task accepted!' : 'Task passed on successfully!');
+      toast.success(response === 'accepted' ? 'Task accepted and marked as In Progress!' : 'Task declined successfully!');
       setShowTaskResponse(false);
       setPassOnReason('');
-      loadComments(String(numericId));
+      setShowTaskDetail(false);
+      setSelectedTask(null);
+      loadTasks(); // Reload tasks to update the list
     } catch (error: any) {
       toast.error(error.message || 'Failed to respond to task');
     }
@@ -420,6 +449,7 @@ export default function TasksPage() {
       case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'cancelled': return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'unaccepted': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -429,6 +459,7 @@ export default function TasksPage() {
       case 'completed': return <CheckCircle className="w-4 h-4" />;
       case 'in_progress': return <Clock className="w-4 h-4" />;
       case 'pending': return <AlertCircle className="w-4 h-4" />;
+      case 'unaccepted': return <X className="w-4 h-4" />;
       default: return <Clock className="w-4 h-4" />;
     }
   };
@@ -565,6 +596,96 @@ export default function TasksPage() {
         </div>
       </div>
 
+      {/* Unaccepted Tasks Section - Only visible to full admins */}
+      {user?.role === 'admin' && tasks.filter(t => t.status === 'unaccepted').length > 0 && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6">
+          <h2 className="text-xl font-bold text-red-900 mb-4 flex items-center gap-2">
+            <AlertCircle className="w-6 h-6" />
+            Unaccepted Tasks ({tasks.filter(t => t.status === 'unaccepted').length})
+          </h2>
+          <p className="text-red-700 mb-4 text-sm">
+            These tasks were declined by assigned users. Please review the reasons and reassign if needed.
+          </p>
+          <div className="grid grid-cols-1 gap-4">
+            {tasks.filter(t => t.status === 'unaccepted').map((task) => {
+              const assignedUser = users.find(u => u.id === task.assigned_to);
+              const linkedCase = cases.find(c => c.id === task.case_id);
+              
+              return (
+                <div
+                  key={task.id}
+                  className="bg-white rounded-lg p-4 border-2 border-red-300 hover:border-red-400 transition"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">{task.title}</h3>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
+                          {task.priority.toUpperCase()}
+                        </span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border flex items-center gap-1 ${getStatusColor(task.status)}`}>
+                          {getStatusIcon(task.status)}
+                          DECLINED
+                        </span>
+                      </div>
+                      
+                      {task.description && (
+                        <p className="text-gray-600 mb-2">{task.description}</p>
+                      )}
+                      
+                      {task.decline_reason && (
+                        <div className="bg-red-100 border border-red-200 rounded-lg p-3 mb-3">
+                          <p className="text-sm font-medium text-red-900 mb-1">Decline Reason:</p>
+                          <p className="text-sm text-red-800">{task.decline_reason}</p>
+                        </div>
+                      )}
+                      
+                      <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                        {assignedUser && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Was assigned to:</span>
+                            <span className="text-red-700 font-semibold">{assignedUser.full_name}</span>
+                          </div>
+                        )}
+                        {linkedCase && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Case:</span>
+                            <span>{linkedCase.case_number}</span>
+                          </div>
+                        )}
+                        {task.due_date && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4" />
+                            <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 ml-4">
+                      <button
+                        onClick={() => handleEdit(task)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                        title="Edit & Reassign Task"
+                      >
+                        Reassign
+                      </button>
+                      <button
+                        onClick={() => handleDelete(task.id)}
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                        title="Delete Task"
+                      >
+                        <Trash className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Task List */}
       <div className="grid grid-cols-1 gap-4">
         {filteredTasks.length === 0 ? (
@@ -636,13 +757,16 @@ export default function TasksPage() {
                     >
                       <Edit className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(task.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                      title="Delete Task"
-                    >
-                      <Trash className="w-4 h-4" />
-                    </button>
+                    {/* Only admins can delete tasks, not restricted admins */}
+                    {user?.role === 'admin' && (
+                      <button
+                        onClick={() => handleDelete(task.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                        title="Delete Task"
+                      >
+                        <Trash className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => openTaskDetail(task)}
                       className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition"
@@ -920,8 +1044,8 @@ export default function TasksPage() {
                 </button>
               </div>
 
-              {/* Task Response Buttons (for restricted_admin) */}
-              {user?.role === 'restricted_admin' && selectedTask?.assigned_to === user?.id && (
+              {/* Task Response Buttons (for assigned user) */}
+              {selectedTask?.assigned_to === user?.id && selectedTask?.status === 'pending' && (
                 <div className="mt-4 pt-4 border-t border-gray-300 flex gap-2">
                   <button
                     onClick={() => handleTaskResponse('accepted')}
