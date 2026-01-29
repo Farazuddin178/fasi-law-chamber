@@ -28,6 +28,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import NotificationBell from './NotificationBell';
 
 interface NavItem {
   name: string;
@@ -130,7 +131,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Scale className="w-8 h-8 text-amber-500" />
           <span className="text-lg font-bold text-white">Fasi Law Chamber</span>
         </div>
-        <div className="w-8" />
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+        </div>
       </div>
 
       {/* Sidebar */}

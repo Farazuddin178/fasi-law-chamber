@@ -107,14 +107,13 @@ export default function AnnouncementsPage() {
 
         if (error) throw error;
         
-        // Send notification for new announcement
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('📢 New Announcement', {
-            body: formData.title,
-            icon: '/logo.png',
-            tag: 'announcement-notification',
-          });
-        }
+        // Send notification to all users using centralized manager
+        const { notificationManager } = await import('@/lib/notificationManager');
+        await notificationManager.notifyAnnouncement(
+          formData.title,
+          formData.content,
+          'medium' // Default priority
+        );
         
         toast.success('Announcement created successfully');
       }
