@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: tshc-scraper-backend
+    env: python
+    buildCommand: pip install -r requirements.txt && playwright install chromium
+    startCommand: gunicorn tshc_server:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0

@@ -4,6 +4,7 @@ Fixed: URL trailing spaces, element finding, Chrome compatibility
 """
 
 from flask import Flask, render_template_string, jsonify, request
+from flask_cors import CORS
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -17,6 +18,7 @@ from datetime import datetime
 import time
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
 class TSHCScraper:
     def __init__(self):
