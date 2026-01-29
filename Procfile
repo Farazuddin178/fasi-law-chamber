@@ -1,1 +1,1 @@
-web: gunicorn tshc_server:app
+web: gunicorn proxy:app
