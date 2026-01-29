@@ -1,9 +1,28 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase, Case } from '@/lib/supabase';
-import { ArrowLeft, Download, Edit, Trash } from 'lucide-react';
+import { ArrowLeft, Download, Edit, Trash, Plus, User, Clock, FileText, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+
+interface CaseSubmission {
+  id: string;
+  submission_number: number;
+  submission_date: string;
+  due_date?: string;
+  return_date?: string;
+  status: string;
+  file_given_by?: any;
+  file_given_to?: any;
+  changes_made?: string;
+  changes_requested?: string;
+  changes_requested_by?: any;
+  notes?: string;
+  document_url?: string;
+  file_name?: string;
+  created_at: string;
+  created_by?: any;
+}
 
 export default function CaseDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -11,6 +30,15 @@ export default function CaseDetailsPage() {
   const { user } = useAuth();
   const [caseData, setCaseData] = useState<Case | null>(null);
   const [loading, setLoading] = useState(true);
+  const [submissions, setSubmissions] = useState<CaseSubmission[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [showSubmissionModal, setShowSubmissionModal] = useState(false);
+  const [submissionForm, setSubmissionForm] = useState({
+    file_given_to: '',
+    due_date: '',
+    notes: '',
+    changes_requested: ''
+  });
 
   // Ensure any field expected to be an array is treated as an array to avoid runtime errors
   const toArray = <T,>(value: any): T[] => {
@@ -50,6 +78,8 @@ export default function CaseDetailsPage() {
   useEffect(() => {
     if (id && id !== 'new') {
       loadCase();
+      loadSubmissions();
+      loadUsers();
     } else {
       setLoading(false);
     }
@@ -75,6 +105,116 @@ export default function CaseDetailsPage() {
       navigate('/cases');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSubmissions = async () => {
+    if (!id) return;
+    try {
+      const { data, error } = await supabase
+        .from('case_submissions')
+        .select(`
+          *
+        `)
+        .eq('case_id', parseInt(id))
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSubmissions(data || []);
+    } catch (error: any) {
+      console.error('Failed to load submissions:', error);
+    }
+  };
+
+  const getUserName = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    return user ? user.full_name || user.email : 'Unknown User';
+  };
+
+  const loadUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, full_name, email')
+        .order('full_name');
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error: any) {
+      console.error('Failed to load users:', error);
+    }
+  };
+
+  const handleSubmissionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !user) return;
+
+    try {
+      const nextSubmissionNumber = submissions.length + 1;
+      
+      const { error } = await supabase.from('case_submissions').insert({
+        case_id: parseInt(id),
+        submission_number: nextSubmissionNumber,
+        status: 'pending',
+        file_given_to: submissionForm.file_given_to,
+        due_date: submissionForm.due_date || null,
+        notes: submissionForm.notes || null,
+        created_by: user.id
+      });
+
+      if (error) throw error;
+      
+      toast.success('Submission added successfully');
+      setShowSubmissionModal(false);
+      setSubmissionForm({ file_given_to: '', due_date: '', notes: '', changes_requested: '' });
+      loadSubmissions();
+    } catch (error: any) {
+      toast.error('Failed to add submission: ' + error.message);
+    }
+  };
+
+  const updateSubmissionStatus = async (submissionId: string, status: string) => {
+    try {
+      const updateData: any = { status };
+      if (status === 'completed') {
+        updateData.return_date = new Date().toISOString();
+      }
+
+      const { error } = await supabase
+        .from('case_submissions')
+        .update(updateData)
+        .eq('id', submissionId);
+
+      if (error) throw error;
+      
+      toast.success(`Submission marked as ${status.replace('_', ' ')}`);
+      loadSubmissions();
+    } catch (error: any) {
+      toast.error('Failed to update submission status');
+    }
+  };
+
+  const requestChanges = async (submissionId: string) => {
+    const changes = prompt('What changes are needed?');
+    if (!changes || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('case_submissions')
+        .update({
+          status: 'changes_requested',
+          changes_requested: changes,
+          changes_requested_by: user.id,
+          changes_requested_date: new Date().toISOString()
+        })
+        .eq('id', submissionId);
+
+      if (error) throw error;
+      
+      toast.success('Changes requested successfully');
+      loadSubmissions();
+    } catch (error: any) {
+      toast.error('Failed to request changes');
     }
   };
 
@@ -642,7 +782,221 @@ Generated: ${new Date().toLocaleString()}
             )}
           </div>
         </div>
+
+        {/* CASE SUBMISSION TRACKING */}
+        <div className="bg-white rounded-xl shadow-lg border-2 border-purple-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-purple-50 to-purple-100 px-6 py-4 border-b-2 border-purple-200 flex justify-between items-center">
+            <h3 className="text-2xl font-bold text-purple-900">📋 Case Submission Tracking</h3>
+            <button
+              onClick={() => setShowSubmissionModal(true)}
+              className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+            >
+              <Plus className="w-4 h-4" />
+              Add Submission
+            </button>
+          </div>
+          <div className="p-6">
+            {submissions.length > 0 ? (
+              <div className="space-y-4">
+                {submissions.map((submission) => (
+                  <div key={submission.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-purple-700">#{submission.submission_number}</span>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            submission.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            submission.status === 'changes_requested' ? 'bg-red-100 text-red-800' :
+                            submission.status === 'under_review' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {submission.status.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {new Date(submission.submission_date).toLocaleDateString()}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                      {submission.file_given_to && (
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-blue-500" />
+                          <span className="text-gray-600">Given to:</span>
+                          <span className="font-medium">{getUserName(submission.file_given_to)}</span>
+                        </div>
+                      )}
+                      {submission.due_date && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-orange-500" />
+                          <span className="text-gray-600">Due:</span>
+                          <span className="font-medium">{new Date(submission.due_date).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                      {submission.return_date && (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <span className="text-gray-600">Returned:</span>
+                          <span className="font-medium">{new Date(submission.return_date).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {submission.changes_requested && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
+                        <div className="flex items-start gap-2">
+                          <FileText className="w-4 h-4 text-red-500 mt-0.5" />
+                          <div>
+                            <span className="font-medium text-red-800">Changes Requested:</span>
+                            <p className="text-red-700 mt-1">{submission.changes_requested}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {submission.changes_made && (
+                      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
+                          <div>
+                            <span className="font-medium text-green-800">Changes Made:</span>
+                            <p className="text-green-700 mt-1">{submission.changes_made}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {submission.notes && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                        <div className="flex items-start gap-2">
+                          <FileText className="w-4 h-4 text-blue-500 mt-0.5" />
+                          <div>
+                            <span className="font-medium text-blue-800">Notes:</span>
+                            <p className="text-blue-700 mt-1">{submission.notes}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-200">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => updateSubmissionStatus(submission.id, 'under_review')}
+                          className="px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition"
+                          disabled={submission.status === 'completed'}
+                        >
+                          Mark Under Review
+                        </button>
+                        <button
+                          onClick={() => requestChanges(submission.id)}
+                          className="px-3 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 transition"
+                          disabled={submission.status === 'completed'}
+                        >
+                          Request Changes
+                        </button>
+                        <button
+                          onClick={() => updateSubmissionStatus(submission.id, 'completed')}
+                          className="px-3 py-1 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 transition"
+                        >
+                          Mark Complete
+                        </button>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Created by {getUserName(submission.created_by)} on {new Date(submission.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p>No submissions tracked for this case yet.</p>
+                <p className="text-sm">Click "Add Submission" to start tracking file movements and changes.</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Submission Modal */}
+    {showSubmissionModal && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-gray-900">Add Case Submission</h2>
+            <button
+              onClick={() => setShowSubmissionModal(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              ×
+            </button>
+          </div>
+          <div className="p-6">
+            <form onSubmit={handleSubmissionSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  File Given To
+                </label>
+                <select
+                  value={submissionForm.file_given_to}
+                  onChange={(e) => setSubmissionForm({...submissionForm, file_given_to: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select user...</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>{user.full_name} ({user.email})</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Due Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={submissionForm.due_date}
+                  onChange={(e) => setSubmissionForm({...submissionForm, due_date: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={submissionForm.notes}
+                  onChange={(e) => setSubmissionForm({...submissionForm, notes: e.target.value})}
+                  placeholder="Add any notes about this submission..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  rows={3}
+                />
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowSubmissionModal(false)}
+                  className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                >
+                  Add Submission
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
