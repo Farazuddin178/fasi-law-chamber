@@ -20,6 +20,10 @@ import GitHubIntegrationPage from './pages/GitHubIntegrationPage';
 import MessagesPage from './pages/MessagesPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import LinksPage from './pages/LinksPage';
+import CalendarPage from './pages/CalendarPage';
+import CaseLookupPage from './pages/CaseLookupPage';
+import AdvocateReportPage from './pages/AdvocateReportPage';
+import SittingArrangementsPage from './pages/SittingArrangementsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -61,6 +65,10 @@ function AppRoutes() {
                 <Route path="/github" element={<GitHubIntegrationPage />} />
                 <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/announcements" element={<AnnouncementsPage />} />
+                <Route path="/calendar" element={<CalendarPage />} />
+                <Route path="/advocate-report" element={<AdvocateReportPage />} />
+                <Route path="/case-lookup" element={<CaseLookupPage />} />
+                <Route path="/sitting-arrangements" element={<SittingArrangementsPage />} />
                 <Route path="/links" element={<LinksPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/" element={<Navigate to="/dashboard" />} />

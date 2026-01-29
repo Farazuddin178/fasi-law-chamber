@@ -23,13 +23,6 @@ export default function LinksPage() {
       icon: '📡',
       category: 'Courts',
     },
-    {
-      title: 'Roster Change',
-      description: 'View roster and judge assignments',
-      url: 'https://tshc.vconsol.com/live-courts',
-      icon: '👥',
-      category: 'Courts',
-    },
   ];
 
   const copyToClipboard = (text: string, title: string) => {
@@ -108,7 +101,7 @@ export default function LinksPage() {
           </li>
           <li className="flex items-start gap-2">
             <span className="text-blue-600 font-bold">•</span>
-            <span>Check the roster change link for judge assignments and court schedules</span>
+            <span>Visit Sitting Arrangements page to view judge rosters and court schedules</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-blue-600 font-bold">•</span>

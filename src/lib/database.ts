@@ -3,7 +3,7 @@
  * All database-related code for Supabase is maintained in this file
  */
 
-import { supabase, Case, Task, User, TaskComment, Document, Expense, LoginLog } from './supabase';
+import { supabase, Case, Task, User, TaskComment, Document, Expense, LoginLog, Court, TrackedCase, CaseEventRecord } from './supabase';
 import toast from 'react-hot-toast';
 
 // ============================================================================
@@ -620,6 +620,159 @@ export const loginLogsDB = {
       return { data: data || [], error: null };
     } catch (error: any) {
       return { data: [], error: error.message };
+    }
+  },
+};
+
+// ============================================================================
+// COURTS OPERATIONS (Supreme + High Courts)
+// ============================================================================
+
+export const courtsDB = {
+  async getTopCourts() {
+    try {
+      const { data, error } = await supabase
+        .from('courts')
+        .select('*')
+        .in('court_type', ['supreme_court', 'high_court'])
+        .eq('is_active', true)
+        .order('court_type', { ascending: true })
+        .order('court_name', { ascending: true });
+
+      if (error) throw error;
+      return { data: (data as Court[]) || [], error: null };
+    } catch (error: any) {
+      return { data: [], error: error.message };
+    }
+  },
+
+  async getById(id: string) {
+    try {
+      const { data, error } = await supabase
+        .from('courts')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return { data: (data as Court) || null, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    }
+  }
+};
+
+// ============================================================================
+// TRACKED CASES (Supreme + High Courts only for now)
+// ============================================================================
+
+export const trackedCasesDB = {
+  async listForUser(userId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('tracked_cases')
+        .select('*, courts:court_id(*)')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+      return { data: (data as any[]) || [], error: null };
+    } catch (error: any) {
+      return { data: [], error: error.message };
+    }
+  },
+
+  async create(payload: Partial<TrackedCase>, userId: string) {
+    try {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('tracked_cases')
+        .insert([
+          {
+            ...payload,
+            user_id: userId,
+            created_at: now,
+            updated_at: now,
+          },
+        ])
+        .select('*, courts:court_id(*)')
+        .single();
+
+      if (error) throw error;
+      return { data: data as any, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    }
+  },
+
+  async update(id: string, payload: Partial<TrackedCase>) {
+    try {
+      const { data, error } = await supabase
+        .from('tracked_cases')
+        .update({
+          ...payload,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select('*, courts:court_id(*)')
+        .single();
+
+      if (error) throw error;
+      return { data: data as any, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    }
+  },
+
+  async delete(id: string) {
+    try {
+      const { error } = await supabase.from('tracked_cases').delete().eq('id', id);
+      if (error) throw error;
+      return { error: null };
+    } catch (error: any) {
+      return { error: error.message };
+    }
+  },
+};
+
+// ============================================================================
+// CASE EVENTS (per tracked case)
+// ============================================================================
+
+export const caseEventsDB = {
+  async getByTrackedCase(trackedCaseId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('case_events')
+        .select('*')
+        .eq('tracked_case_id', trackedCaseId)
+        .order('event_date', { ascending: false });
+
+      if (error) throw error;
+      return { data: (data as CaseEventRecord[]) || [], error: null };
+    } catch (error: any) {
+      return { data: [], error: error.message };
+    }
+  },
+
+  async addEvent(trackedCaseId: string, payload: Partial<CaseEventRecord>) {
+    try {
+      const { data, error } = await supabase
+        .from('case_events')
+        .insert([
+          {
+            ...payload,
+            tracked_case_id: trackedCaseId,
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data: data as CaseEventRecord, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
     }
   },
 };

@@ -13,7 +13,39 @@ export default function CaseDetailsPage() {
   const [loading, setLoading] = useState(true);
 
   // Ensure any field expected to be an array is treated as an array to avoid runtime errors
-  const toArray = <T,>(value: any): T[] => (Array.isArray(value) ? value : []);
+  const toArray = <T,>(value: any): T[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  // Helper function to generate disposal order PDF URL
+  const getDisposalOrderUrl = (): string | null => {
+    if (!caseData || caseData.status !== 'disposed' || !caseData.case_number) return null;
+    
+    try {
+      // Parse case number format: "CRLP 107/2026" or "WP 1423/2026"
+      const match = caseData.case_number.match(/^([A-Z]+)\s*(\d+)\/(\d{4})$/i);
+      if (!match) return null;
+      
+      const [, type, number, year] = match;
+      const typeLower = type.toLowerCase();
+      
+      // Format: https://csis.tshc.gov.in/hcorders/2026/crlp/crlp_107_2026.pdf
+      return `https://csis.tshc.gov.in/hcorders/${year}/${typeLower}/${typeLower}_${number}_${year}.pdf`;
+    } catch (e) {
+      console.error('Error generating disposal order URL:', e);
+      return null;
+    }
+  };
 
   useEffect(() => {
     if (id && id !== 'new') {
@@ -218,131 +250,242 @@ Generated: ${new Date().toLocaleString()}
 
 
       <div className="space-y-6">
-        {/* PRIMARY DETAILS */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 overflow-x-auto">
-          <table className="min-w-full minimalistBlack">
-            <tbody>
-              <tr><th colSpan={4} className="text-center text-blue-700 font-bold">PRIMARY DETAILS</th></tr>
-              <tr>
-                <td><b>Main Number</b></td>
-                <td className="font-bold">{caseData.case_number}</td>
-                <td><b>SR Number</b></td>
-                <td className="font-bold">{caseData.sr_number || 'N/A'}</td>
-              </tr>
-              <tr>
-                <td className="tdstyle"><b>CNR No.</b></td>
-                <td colSpan={3} className="tdstyle text-red-700 font-bold">{caseData.cnr || 'N/A'}</td>
-              </tr>
-              <tr>
-                <td className="tdstyle"><b>Petitioner</b></td>
-                <td className="tdstyle font-bold">{caseData.primary_petitioner || 'N/A'}</td>
-                <td className="tdstyle"><b>Respondent</b></td>
-                <td className="tdstyle font-bold">{caseData.primary_respondent || 'N/A'}</td>
-              </tr>
-              <tr>
-                <td className="tdstyle"><b>Petitioner Advocate</b></td>
-                <td className="tdstyle font-bold">{caseData.petitioner_adv || 'N/A'}</td>
-                <td className="tdstyle">Respondent Advocate</td>
-                <td className="tdstyle font-bold">{caseData.respondent_adv || 'N/A'}</td>
-              </tr>
-              <tr>
-                <td className="tdstyle">Case Category</td>
-                <td className="tdstyle font-bold">{caseData.category || 'N/A'}</td>
-                <td className="tdstyle">District</td>
-                <td className="tdstyle font-bold">{caseData.district || 'N/A'}</td>
-              </tr>
-              <tr>
-                <td className="tdstyle">Filing Date</td>
-                <td className="tdstyle font-bold">{caseData.filing_date ? new Date(caseData.filing_date).toLocaleDateString() : 'N/A'}</td>
-                <td className="tdstyle">Registration Date</td>
-                <td className="tdstyle font-bold">{caseData.registration_date ? new Date(caseData.registration_date).toLocaleDateString() : 'N/A'}</td>
-              </tr>
-              <tr>
-                <td className="tdstyle">Listing Date</td>
-                <td className="tdstyle font-bold">{caseData.listing_date ? new Date(caseData.listing_date).toLocaleDateString() : 'N/A'}</td>
-                <td>Case Status</td>
-                <td className="text-center text-red-700 font-bold">{caseData.status?.toUpperCase()}</td>
-              </tr>
-              <tr>
-                <td className="tdstyle"><b>Disposal Date</b></td>
-                <td className="tdstyle font-bold">{caseData.disp_date ? new Date(caseData.disp_date).toLocaleDateString() : 'N/A'}</td>
-                <td className="tdstyle"><b>Disposal Type</b></td>
-                <td className="tdstyle font-bold">{caseData.disp_type || 'N/A'}</td>
-              </tr>
-              <tr>
-                <td className="tdstyle">Purpose</td>
-                <td className="tdstyle font-bold">{caseData.purpose || 'N/A'}</td>
-              </tr>
-              <tr>
-                <td className="tdstyle">Hon'ble Judges</td>
-                <td className="tdstyle font-bold" colSpan={3}>{caseData.jud_name || 'N/A'}</td>
-              </tr>
-            </tbody>
-          </table>
+        {/* HEADER CARD */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl shadow-lg p-8 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold mb-2">{caseData.case_number}</h2>
+              <p className="text-blue-100 text-lg">{caseData.primary_petitioner} vs {caseData.primary_respondent}</p>
+            </div>
+            <div className="text-right">
+              <div className={`inline-block px-6 py-3 rounded-full font-bold text-lg ${
+                caseData.status === 'disposed' ? 'bg-green-500' :
+                caseData.status === 'pending' ? 'bg-yellow-500' :
+                caseData.status === 'filed' ? 'bg-blue-500' : 'bg-gray-500'
+              }`}>
+                {caseData.status?.toUpperCase()}
+              </div>
+              {caseData.cnr && (
+                <p className="text-blue-100 mt-2 text-sm">CNR: {caseData.cnr}</p>
+              )}
+            </div>
+          </div>
         </div>
 
+        {/* PRIMARY DETAILS */}
+        <div className="bg-white rounded-xl shadow-lg border-2 border-blue-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-6 py-4 border-b-2 border-blue-200">
+            <h3 className="text-2xl font-bold text-blue-900">📋 Primary Details</h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Main Number</span>
+                  <span className="text-lg font-bold text-gray-900 mt-1">{caseData.case_number}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">SR Number</span>
+                  <span className="text-lg font-bold text-gray-900 mt-1">{caseData.sr_number || 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Petitioner</span>
+                  <span className="text-lg font-bold text-blue-900 mt-1">{caseData.primary_petitioner || 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Petitioner Advocate</span>
+                  <span className="text-lg font-semibold text-gray-700 mt-1">{caseData.petitioner_adv || 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Category</span>
+                  <span className="text-lg font-semibold text-gray-700 mt-1">{caseData.category || 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Filing Date</span>
+                  <span className="text-lg font-semibold text-gray-700 mt-1">{caseData.filing_date ? new Date(caseData.filing_date).toLocaleDateString() : 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Listing Date</span>
+                  <span className="text-lg font-semibold text-gray-700 mt-1">{caseData.listing_date ? new Date(caseData.listing_date).toLocaleDateString() : 'N/A'}</span>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">CNR Number</span>
+                  <span className="text-lg font-bold text-red-600 mt-1">{caseData.cnr || 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">District</span>
+                  <span className="text-lg font-semibold text-gray-700 mt-1">{caseData.district || 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Respondent</span>
+                  <span className="text-lg font-bold text-red-900 mt-1">{caseData.primary_respondent || 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Respondent Advocate</span>
+                  <span className="text-lg font-semibold text-gray-700 mt-1">{caseData.respondent_adv || 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Purpose</span>
+                  <span className="text-lg font-semibold text-gray-700 mt-1">{caseData.purpose || 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Registration Date</span>
+                  <span className="text-lg font-semibold text-gray-700 mt-1">{caseData.registration_date ? new Date(caseData.registration_date).toLocaleDateString() : 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Hon'ble Judges</span>
+                  <span className="text-lg font-bold text-purple-900 mt-1">{caseData.jud_name || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* DISPOSAL DETAILS - Only show if case is disposed */}
+        {caseData.status === 'disposed' && (
+          <div className="bg-white rounded-xl shadow-lg border-2 border-green-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-green-50 to-green-100 px-6 py-4 border-b-2 border-green-200">
+              <h3 className="text-2xl font-bold text-green-900">✅ Disposal Details</h3>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <span className="text-sm font-semibold text-green-600 uppercase">Disposal Date</span>
+                  <p className="text-lg font-bold text-gray-900 mt-2">
+                    {caseData.disp_date ? new Date(caseData.disp_date).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <span className="text-sm font-semibold text-green-600 uppercase">Disposal Type</span>
+                  <p className="text-lg font-bold text-gray-900 mt-2">{caseData.disp_type || 'N/A'}</p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <span className="text-sm font-semibold text-green-600 uppercase">Order</span>
+                  <div className="mt-2">
+                    {getDisposalOrderUrl() ? (
+                      <a
+                        href={getDisposalOrderUrl()!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 font-bold text-lg shadow-md hover:shadow-lg transition-all"
+                      >
+                        📄 Click here to see the Order
+                      </a>
+                    ) : (
+                      <span className="text-gray-500">Order not available</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* CATEGORY */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 overflow-x-auto">
-          <table className="min-w-full minimalistBlack">
-            <tbody>
-              <tr><th colSpan={4} className="text-center text-blue-700 font-bold">Category</th></tr>
-              <tr>
-                <td className="tdstyle"><b>Category</b></td>
-                <td className="tdstyle font-bold">{caseData.category || 'N/A'}</td>
-                <td className="tdstyle"><b>Sub Category</b></td>
-                <td className="tdstyle font-bold">{caseData.sub_category || 'N/A'}</td>
-              </tr>
-              <tr>
-                <td className="tdstyle"><b>Sub Sub Category</b></td>
-                <td className="tdstyle font-bold">{caseData.sub_sub_category || 'N/A'}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="bg-white rounded-xl shadow-lg border-2 border-purple-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-purple-50 to-purple-100 px-6 py-4 border-b-2 border-purple-200">
+            <h3 className="text-2xl font-bold text-purple-900">📁 Category</h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <span className="text-sm font-semibold text-purple-600 uppercase">Category</span>
+                <p className="text-lg font-bold text-gray-900 mt-2">{caseData.category || 'N/A'}</p>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <span className="text-sm font-semibold text-purple-600 uppercase">Sub Category</span>
+                <p className="text-lg font-bold text-gray-900 mt-2">{caseData.sub_category || 'N/A'}</p>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <span className="text-sm font-semibold text-purple-600 uppercase">Sub Sub Category</span>
+                <p className="text-lg font-bold text-gray-900 mt-2">{caseData.sub_sub_category || 'N/A'}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* IA DETAILS */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 overflow-x-auto">
-          <table className="min-w-full B2U-article">
-            <tbody>
-              <tr><th colSpan={8} className="text-center text-blue-700 font-bold">IA DETAILS</th></tr>
-              <tr>
-                <td>IA Number</td><td>Filing Date</td><td>Advocate Name</td><td>Misc.Paper Type</td><td>Status</td><td>Prayer</td><td>Order Date</td><td>Order</td>
-              </tr>
-              {toArray<any>(caseData.ia_details).map((ia, idx: number) => (
-                <tr key={idx}>
-                  <td>{ia.number || '-'}</td>
-                  <td>{ia.filing_date || '-'}</td>
-                  <td>{ia.advocate_name || '-'}</td>
-                  <td>{ia.paper_type || '-'}</td>
-                  <td>{ia.status || '-'}</td>
-                  <td>{ia.prayer ? <a href="#" onClick={e => {e.preventDefault(); alert(ia.prayer);}}>IA PRAYER</a> : '-'}</td>
-                  <td>{ia.order_date || '-'}</td>
-                  <td>{ia.order || '-'}</td>
+        <div className="bg-white rounded-xl shadow-lg border-2 border-green-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-green-50 to-green-100 px-6 py-4 border-b-2 border-green-200">
+            <h3 className="text-2xl font-bold text-green-900">📝 IA Details</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">IA Number</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Filing Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Advocate</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Prayer</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Order Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Order</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {toArray<any>(caseData.ia_details).map((ia, idx: number) => (
+                  <tr key={idx} className="hover:bg-green-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">{ia.number || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{ia.filing_date || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{ia.advocate_name || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{ia.paper_type || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${ia.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                        {ia.status || '-'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm">{ia.prayer ? <button onClick={e => {e.preventDefault(); alert(ia.prayer);}} className="text-blue-600 hover:text-blue-800 hover:underline font-semibold">View Prayer</button> : '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{ia.order_date || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{ia.order || '-'}</td>
+                  </tr>
+                ))}
+                {toArray<any>(caseData.ia_details).length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">No IA details available</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* USR DETAILS */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 overflow-x-auto">
-          <table className="min-w-full B2U-article">
-            <tbody>
-              <tr><th colSpan={5} className="text-center text-blue-700 font-bold">USR Details</th></tr>
-              <tr>
-                <td>USR Number</td><td>Advocate Name</td><td>USR Type</td><td>USR Filing Date</td><td>Remarks</td>
-              </tr>
-              {toArray<any>(caseData.usr_details).map((usr, idx: number) => (
-                <tr key={idx}>
-                  <td>{usr.number || '-'}</td>
-                  <td>{usr.advocate_name || '-'}</td>
-                  <td>{usr.usr_type || '-'}</td>
-                  <td>{usr.filing_date || '-'}</td>
-                  <td>{usr.remarks || '-'}</td>
+        <div className="bg-white rounded-xl shadow-lg border-2 border-indigo-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-indigo-50 to-indigo-100 px-6 py-4 border-b-2 border-indigo-200">
+            <h3 className="text-2xl font-bold text-indigo-900">📄 USR Details</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">USR Number</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Advocate</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">USR Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Filing Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Remarks</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {toArray<any>(caseData.usr_details).map((usr, idx: number) => (
+                  <tr key={idx} className="hover:bg-indigo-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">{usr.number || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{usr.advocate_name || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{usr.usr_type || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{usr.filing_date || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{usr.remarks || '-'}</td>
+                  </tr>
+                ))}
+                {toArray<any>(caseData.usr_details).length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No USR details available</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* CONNECTED MATTERS */}
@@ -405,113 +548,85 @@ Generated: ${new Date().toLocaleString()}
         )}
 
         {/* PETITIONERS */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 overflow-x-auto">
-          <table className="min-w-full B2U-article">
-            <tbody>
-              <tr><td colSpan={2} className="text-center text-blue-700">PETITIONER(S)</td></tr>
-              <tr><td>S.No</td><td>Petitioner(S) Name</td></tr>
+        <div className="bg-white rounded-xl shadow-lg border-2 border-blue-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-6 py-4 border-b-2 border-blue-200">
+            <h3 className="text-2xl font-bold text-blue-900">👤 Petitioner(s)</h3>
+          </div>
+          <div className="p-6">
+            <div className="space-y-3">
               {toArray<any>(caseData.petitioners).map((p, idx: number) => (
-                <tr key={idx} style={{ color: '#333300' }}>
-                  <td className="font-bold">{idx + 1}</td>
-                  <td className="font-bold">{typeof p === 'string' ? p : p.name || JSON.stringify(p)}</td>
-                </tr>
+                <div key={idx} className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200 hover:shadow-md transition-shadow">
+                  <span className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white font-bold rounded-full text-lg">{idx + 1}</span>
+                  <span className="text-lg font-semibold text-gray-900">{typeof p === 'string' ? p : p.name || JSON.stringify(p)}</span>
+                </div>
               ))}
-            </tbody>
-          </table>
+              {toArray<any>(caseData.petitioners).length === 0 && (
+                <p className="text-center text-gray-500 py-4">No petitioners listed</p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* RESPONDENTS */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 overflow-x-auto">
-          <table className="min-w-full B2U-article">
-            <tbody>
-              <tr><td colSpan={2} className="text-center text-blue-700">RESPONDENT(S)</td></tr>
-              <tr><td>R.No</td><td>Respondent(S) Name</td></tr>
+        <div className="bg-white rounded-xl shadow-lg border-2 border-red-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-red-50 to-red-100 px-6 py-4 border-b-2 border-red-200">
+            <h3 className="text-2xl font-bold text-red-900">👥 Respondent(s)</h3>
+          </div>
+          <div className="p-6">
+            <div className="space-y-3">
               {toArray<any>(caseData.respondents).map((r, idx: number) => (
-                <tr key={idx} style={{ color: '#333300' }}>
-                  <td className="font-bold">{idx + 1}</td>
-                  <td className="font-bold">{typeof r === 'string' ? r : r.name || JSON.stringify(r)}</td>
-                </tr>
+                <div key={idx} className="flex items-center gap-4 p-4 bg-red-50 rounded-lg border border-red-200 hover:shadow-md transition-shadow">
+                  <span className="flex items-center justify-center w-10 h-10 bg-red-600 text-white font-bold rounded-full text-lg">{idx + 1}</span>
+                  <span className="text-lg font-semibold text-gray-900">{typeof r === 'string' ? r : r.name || JSON.stringify(r)}</span>
+                </div>
               ))}
-            </tbody>
-          </table>
+              {toArray<any>(caseData.respondents).length === 0 && (
+                <p className="text-center text-gray-500 py-4">No respondents listed</p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* ORDERS */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 overflow-x-auto">
-          <table className="min-w-full B2U-article">
-            <tbody>
-              <tr><th colSpan={6} className="text-center text-blue-700 font-bold">ORDERS</th></tr>
-              <tr><td>Order On</td><td>Judge Name</td><td>Date</td><td>Type</td><td>Details</td><td>File</td></tr>
-              {toArray<any>(caseData.orders).map((o, idx: number) => (
-                <tr key={idx}>
-                  <td>{o.order_on || '-'}</td>
-                  <td>{o.judge_name || '-'}</td>
-                  <td>{o.date || '-'}</td>
-                  <td>{o.type || '-'}</td>
-                  <td>{o.details ? <a href={o.details} target="_blank" rel="noopener noreferrer">View</a> : '-'}</td>
-                  <td>{o.file ? <a href={o.file} target="_blank" rel="noopener noreferrer">File</a> : '-'}</td>
+        <div className="bg-white rounded-xl shadow-lg border-2 border-orange-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-orange-50 to-orange-100 px-6 py-4 border-b-2 border-orange-200">
+            <h3 className="text-2xl font-bold text-orange-900">⚖️ Orders</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Order On</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Judge</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Details</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">File</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {toArray<any>(caseData.orders).map((o, idx: number) => (
+                  <tr key={idx} className="hover:bg-orange-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">{o.order_on || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{o.judge_name || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{o.date || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{o.type || '-'}</td>
+                    <td className="px-6 py-4 text-sm">{o.details ? <a href={o.details} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline font-semibold">View Details</a> : '-'}</td>
+                    <td className="px-6 py-4 text-sm">{o.file ? <a href={o.file} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline font-semibold">📄 PDF</a> : '-'}</td>
+                  </tr>
+                ))}
+                {toArray<any>(caseData.orders).length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No orders available</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Dynamic arrays: Petitioners, Respondents, IA, Orders, Documents, Connected Matters, Vakalath, Lower Court Details */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Petitioners</h2>
-          <div className="space-y-2">
-            {toArray<any>(caseData.petitioners).map((p, idx: number) => (
-              <div key={idx} className="text-gray-900">
-                {typeof p === 'string' ? p : JSON.stringify(p)}
-              </div>
-            ))}
-            {toArray<any>(caseData.petitioners).length === 0 && (
-              <p className="text-gray-500">No petitioners listed</p>
-            )}
-          </div>
-        </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Respondents</h2>
-          <div className="space-y-2">
-            {toArray<any>(caseData.respondents).map((p, idx: number) => (
-              <div key={idx} className="text-gray-900">
-                {typeof p === 'string' ? p : JSON.stringify(p)}
-              </div>
-            ))}
-            {toArray<any>(caseData.respondents).length === 0 && (
-              <p className="text-gray-500">No respondents listed</p>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">IA Details</h2>
-          <div className="space-y-2">
-            {toArray<any>(caseData.ia_details).map((p, idx: number) => (
-              <div key={idx} className="text-gray-900">
-                {typeof p === 'string' ? p : JSON.stringify(p)}
-              </div>
-            ))}
-            {toArray<any>(caseData.ia_details).length === 0 && (
-              <p className="text-gray-500">No IA details available</p>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Orders</h2>
-          <div className="space-y-2">
-            {toArray<any>(caseData.orders).map((o, idx: number) => (
-              <div key={idx} className="text-gray-900">
-                {typeof o === 'string' ? o : JSON.stringify(o)}
-              </div>
-            ))}
-            {toArray<any>(caseData.orders).length === 0 && (
-              <p className="text-gray-500">No orders available</p>
-            )}
-          </div>
-        </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Documents</h2>

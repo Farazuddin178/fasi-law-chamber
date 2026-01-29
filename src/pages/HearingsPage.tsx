@@ -38,39 +38,43 @@ export default function HearingsPage() {
     try {
       let query = supabase
         .from('hearings')
-        .select(`
-          id,
-          case_id,
-          hearing_date,
-          hearing_court,
-          status,
-          mention_date,
-          listing_date,
-          judge_name,
-          motion_type,
-          created_at,
-          cases(case_number)
-        `)
+        .select('*')
         .order('hearing_date', { ascending: false });
 
       if (filterStatus !== 'all') {
         query = query.eq('status', filterStatus);
       }
 
-      // All users can see all hearings
-      const { data, error } = await query;
+      const { data: hearingsData, error: hearingsError } = await query;
 
-      if (error) throw error;
+      if (hearingsError) throw hearingsError;
 
-      const formattedData = data?.map((h: any) => ({
-        ...h,
-        case_number: h.cases?.case_number || 'N/A'
-      })) || [];
+      // Fetch case numbers separately
+      if (hearingsData && hearingsData.length > 0) {
+        const caseIds = [...new Set(hearingsData.map(h => h.case_id).filter(Boolean))];
+        
+        const { data: casesData, error: casesError } = await supabase
+          .from('cases')
+          .select('id, case_number')
+          .in('id', caseIds);
 
-      setHearings(formattedData);
+        if (casesError) throw casesError;
+
+        const caseMap = new Map(casesData?.map(c => [c.id, c.case_number]) || []);
+
+        const formattedData = hearingsData.map((h: any) => ({
+          ...h,
+          case_number: caseMap.get(h.case_id) || 'N/A'
+        }));
+
+        setHearings(formattedData);
+      } else {
+        setHearings([]);
+      }
     } catch (error: any) {
       console.error('Error loading hearings:', error);
       toast.error('Failed to load hearings');
+      setHearings([]);
     } finally {
       setLoading(false);
     }

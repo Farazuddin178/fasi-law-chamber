@@ -21,7 +21,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Gavel,
-  Bell
+  Bell,
+  Calendar,
+  UserCircle2,
+  BookOpen,
+  CalendarDays
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -63,8 +67,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems: NavItem[] = [
     { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { name: 'Cases', path: '/cases', icon: <FolderOpen className="w-5 h-5" /> },
+    { name: 'Case Lookup', path: '/case-lookup', icon: <Scale className="w-5 h-5" /> },
+    { name: 'Advocate Report', path: '/advocate-report', icon: <UserCircle2 className="w-5 h-5" /> },
+    { name: 'Sitting Arrangements', path: '/sitting-arrangements', icon: <BookOpen className="w-5 h-5" /> },
     { name: 'Hearings', path: '/hearings', icon: <Gavel className="w-5 h-5" /> },
     { name: 'Tasks', path: '/tasks', icon: <ListTodo className="w-5 h-5" /> },
+    { name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> },
     { name: 'Documents', path: '/documents', icon: <FileText className="w-5 h-5" /> },
     { name: 'Messages', path: '/messages', icon: <Mail className="w-5 h-5" /> },
     { name: 'Announcements', path: '/announcements', icon: <Bell className="w-5 h-5" />, adminOnly: true },

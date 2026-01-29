@@ -216,10 +216,10 @@ export default function CaseFormPage() {
         advance_date: data.advance_date || false,
         backdated: data.backdated || false,
         document_requirements: data.document_requirements || '',
-        ia_details: data.ia_details || [],
-        usr_details: data.usr_details || [],
+        ia_details: (() => { const v = data.ia_details; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
+        usr_details: (() => { const v = data.usr_details; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
         connected_matters: data.connected_matters || '',
-        vakalath_details: data.vakalath_details || [],
+        vakalath_details: (() => { const v = data.vakalath_details; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
         lower_court_details: data.lower_court_details || {
           court_name: '',
           district: '',
@@ -227,9 +227,9 @@ export default function CaseFormPage() {
           honorable_judge: '',
           date_of_judgement: ''
         },
-        petitioners: data.petitioners || [],
-        respondents: data.respondents || [],
-        orders: data.orders || []
+        petitioners: (() => { const v = data.petitioners; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
+        respondents: (() => { const v = data.respondents; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
+        orders: (() => { const v = data.orders; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })()
       });
     } catch (error: any) {
       toast.error(error.message || 'Failed to load case');
