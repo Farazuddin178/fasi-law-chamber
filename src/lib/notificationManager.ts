@@ -58,7 +58,7 @@ class NotificationManager {
       type: payload.type,
       priority: payload.priority,
       metadata: payload.metadata,
-      read: false,
+      is_read: false,
       created_at: new Date().toISOString(),
     });
 
@@ -93,7 +93,7 @@ class NotificationManager {
       type: payload.type,
       priority: payload.priority,
       metadata: payload.metadata,
-      read: false,
+      is_read: false,
       created_at: new Date().toISOString(),
     }));
 
@@ -209,7 +209,7 @@ class NotificationManager {
   async markAsRead(notificationId: string) {
     const { error } = await supabase
       .from('notifications')
-      .update({ read: true, read_at: new Date().toISOString() })
+      .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('id', notificationId);
 
     if (error) throw error;
@@ -221,9 +221,9 @@ class NotificationManager {
   async markAllAsRead(userId: string) {
     const { error } = await supabase
       .from('notifications')
-      .update({ read: true, read_at: new Date().toISOString() })
+      .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('user_id', userId)
-      .eq('read', false);
+      .eq('is_read', false);
 
     if (error) throw error;
   }
@@ -236,7 +236,7 @@ class NotificationManager {
       .from('notifications')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .eq('read', false);
+      .eq('is_read', false);
 
     if (error) {
       console.error('Failed to get unread count:', error);

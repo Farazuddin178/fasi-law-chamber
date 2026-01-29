@@ -15,7 +15,7 @@ interface Notification {
   message: string;
   type: string;
   priority: string;
-  read: boolean;
+  is_read: boolean;
   created_at: string;
 }
 
@@ -169,9 +169,9 @@ export default function NotificationBell() {
                     <div
                       key={notif.id}
                       className={`p-4 hover:bg-gray-50 transition cursor-pointer ${
-                        !notif.read ? 'bg-blue-50' : ''
+                        !notif.is_read ? 'bg-blue-50' : ''
                       }`}
-                      onClick={() => !notif.read && handleMarkAsRead(notif.id)}
+                      onClick={() => !notif.is_read && handleMarkAsRead(notif.id)}
                     >
                       <div className="flex items-start gap-3">
                         <span className="text-2xl">{getNotificationIcon(notif.type)}</span>
@@ -189,7 +189,7 @@ export default function NotificationBell() {
                             {new Date(notif.created_at).toLocaleString()}
                           </p>
                         </div>
-                        {!notif.read && (
+                        {!notif.is_read && (
                           <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-2"></div>
                         )}
                       </div>

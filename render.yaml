@@ -1,15 +1,15 @@
 services:
-  # Backend - Python Flask API with Selenium scraper
+  # Backend - Python Flask proxy server
   - type: web
     name: fasi-law-backend
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn tshc_server:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn proxy:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: PORT
-        value: 5000
+        value: 5001
   
   # Frontend - React + Vite static site
   - type: web
