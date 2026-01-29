@@ -31,6 +31,14 @@ export default function SittingArrangementsPage() {
           duration: 5000,
           icon: '📋'
         });
+        
+        // Send notification to all users about new arrangements
+        const { notificationManager } = await import('@/lib/notificationManager');
+        const latestArrangement = newArrangements[0];
+        await notificationManager.notifySittingArrangementChange(
+          latestArrangement.title,
+          latestArrangement.link
+        );
       }
       
       setArrangements(newArrangements);

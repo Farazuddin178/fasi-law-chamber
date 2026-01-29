@@ -1,9 +1,26 @@
 services:
+  # Backend - Python Flask API with Selenium scraper
   - type: web
-    name: tshc-scraper-backend
+    name: fasi-law-backend
     env: python
-    buildCommand: pip install -r requirements.txt && playwright install chromium
-    startCommand: gunicorn tshc_server:app
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn tshc_server:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: PORT
+        value: 5000
+  
+  # Frontend - React + Vite static site
+  - type: web
+    name: fasi-law-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_BACKEND_URL
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
