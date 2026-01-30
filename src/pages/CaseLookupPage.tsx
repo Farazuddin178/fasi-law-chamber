@@ -51,7 +51,10 @@ export default function CaseLookupPage() {
     }
     setLoading(true);
     try {
-      const url = `http://localhost:5001/getCaseDetails?mtype=${encodeURIComponent(type)}&mno=${encodeURIComponent(number)}&myear=${encodeURIComponent(year)}`;
+      const backendURL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5001'
+        : ''; // Empty string = use same domain
+      const url = `${backendURL}/getCaseDetails?mtype=${encodeURIComponent(type)}&mno=${encodeURIComponent(number)}&myear=${encodeURIComponent(year)}`;
       const resp = await fetch(url);
       const contentType = resp.headers.get('content-type') || '';
       const data = contentType.includes('application/json') ? await resp.json() : await resp.text();

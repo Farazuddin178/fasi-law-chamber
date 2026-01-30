@@ -205,7 +205,9 @@ async function fetchViaRealtimeAPI(options: {
     // Determine backend URL
     const backendURL = process.env.REACT_APP_BACKEND_URL ||
                       process.env.VITE_BACKEND_URL ||
-                      'http://localhost:5000';
+                      (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+                        ? 'http://localhost:5000'
+                        : ''); // Empty string = use same domain
 
     const endpoint = `${backendURL}/api/case/fetch-realtime`;
 
@@ -287,7 +289,9 @@ async function fetchViaBackendAPI(options: {
     // Determine backend URL
     const backendURL = process.env.REACT_APP_BACKEND_URL ||
                       process.env.VITE_BACKEND_URL ||
-                      'http://localhost:5000';
+                      (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+                        ? 'http://localhost:5000'
+                        : ''); // Empty string = use same domain
 
     // Map court_code to court type (high court vs supreme court)
     const isSupremeCourt = options.court_code === 'supreme_court' || 

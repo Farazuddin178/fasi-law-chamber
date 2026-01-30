@@ -19,7 +19,10 @@ export default function SittingArrangementsPage() {
   const fetchArrangements = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5001/getSittingArrangements');
+      const backendURL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5001'
+        : ''; // Empty string = use same domain
+      const response = await fetch(`${backendURL}/getSittingArrangements`);
       const data = await response.json();
       
       const newArrangements = data.arrangements || [];

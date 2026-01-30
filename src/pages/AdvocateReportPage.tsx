@@ -36,7 +36,11 @@ export default function AdvocateReportPage() {
     }
     setLoading(true);
     try {
-      const url = `http://localhost:5001/getAdvReport?advcode=${encodeURIComponent(advCode.trim())}&year=${encodeURIComponent(year.trim())}`;
+      const backendURL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5001'
+        : ''; // Empty string = use same domain (current page's domain)
+      
+      const url = `${backendURL}/getAdvReport?advcode=${encodeURIComponent(advCode.trim())}&year=${encodeURIComponent(year.trim())}`;
       const resp = await fetch(url);
       const data = await resp.json();
       if (!data || !data.advreport) throw new Error('No report found');
