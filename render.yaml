@@ -5,10 +5,10 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt && pnpm install && pnpm run build
+    buildCommand: pip install -r requirements.txt && npm install -g pnpm && pnpm install && pnpm run build
     startCommand: gunicorn proxy:app --host=0.0.0.0 --port=$PORT
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11.0"
+        value: "3.13.4"
       - key: NODE_VERSION
         value: "22"
