@@ -87,18 +87,15 @@ def get_sitting_arrangements():
         'lastUpdated': datetime.now().isoformat()
     })
 
-@app.route('/')
-def serve_index():
-    """Serve the React frontend index"""
-    return send_from_directory('dist', 'index.html')
-
+# Catch-all route for React app (must be last)
+@app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
-def serve_static(path):
-    """Serve static files from dist folder, fall back to index.html for SPA routing"""
-    full_path = os.path.join('dist', path)
-    if os.path.exists(full_path) and os.path.isfile(full_path):
+def serve_react_app(path):
+    """Serve static files or fall back to index.html for client-side routing"""
+    if path and os.path.exists(os.path.join('dist', path)):
         return send_from_directory('dist', path)
-    return send_from_directory('dist', 'index.html')
+    else:
+        return send_from_directory('dist', 'index.html')
 
 if __name__ == '__main__':
     print("=" * 50)
