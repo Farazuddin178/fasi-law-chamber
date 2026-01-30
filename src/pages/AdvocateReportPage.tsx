@@ -42,6 +42,18 @@ export default function AdvocateReportPage() {
       
       const url = `${backendURL}/getAdvReport?advcode=${encodeURIComponent(advCode.trim())}&year=${encodeURIComponent(year.trim())}`;
       const resp = await fetch(url);
+      
+      if (!resp.ok) {
+        let errorMsg = `Server error: ${resp.status}`;
+        try {
+          const errData = await resp.json();
+          errorMsg = errData.error || errorMsg;
+        } catch {
+          errorMsg = await resp.text() || errorMsg;
+        }
+        throw new Error(errorMsg);
+      }
+      
       const data = await resp.json();
       if (!data || !data.advreport) throw new Error('No report found');
       setReport(data.advreport as AdvReport);

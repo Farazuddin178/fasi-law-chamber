@@ -19,73 +19,91 @@ def ping():
 
 @app.route('/getCaseDetails', methods=['GET'])
 def get_case_details():
-    mtype = request.args.get('mtype')
-    mno = request.args.get('mno')
-    myear = request.args.get('myear')
-    
-    url = f'https://csis.tshc.gov.in/getCaseDetails?mtype={mtype}&mno={mno}&myear={myear}'
-    response = requests.get(url)
-    return response.json()
+    try:
+        mtype = request.args.get('mtype')
+        mno = request.args.get('mno')
+        myear = request.args.get('myear')
+        
+        if not all([mtype, mno, myear]):
+            return jsonify({'error': 'Missing parameters: mtype, mno, myear required'}), 400
+        
+        url = f'https://csis.tshc.gov.in/getCaseDetails?mtype={mtype}&mno={mno}&myear={myear}'
+        response = requests.get(url, timeout=15)
+        
+        if response.status_code != 200:
+            return jsonify({'error': f'External API returned {response.status_code}'}), 502
+        
+        data = response.json()
+        return jsonify(data)
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Request timeout - try again'}), 504
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': 'Unable to fetch case details', 'details': str(e)}), 502
+    except ValueError as e:
+        return jsonify({'error': 'Invalid JSON response from external API', 'details': str(e)}), 502
+    except Exception as e:
+        return jsonify({'error': 'Unexpected error', 'details': str(e)}), 500
 
 @app.route('/getAdvReport', methods=['GET'])
 def get_adv_report():
-    advcode = request.args.get('advcode')
-    year = request.args.get('year')
-    
-    url = f'https://csis.tshc.gov.in/getAdvReport?advcode={advcode}&year={year}'
-    response = requests.get(url)
-    return response.json()
+    try:
+        advcode = request.args.get('advcode')
+        year = request.args.get('year')
+        
+        if not advcode or not year:
+            return jsonify({'error': 'Missing parameters: advcode and year required'}), 400
+        
+        url = f'https://csis.tshc.gov.in/getAdvReport?advcode={advcode}&year={year}'
+        response = requests.get(url, timeout=15)
+        
+        if response.status_code != 200:
+            return jsonify({'error': f'External API returned {response.status_code}'}), 502
+        
+        data = response.json()
+        return jsonify(data)
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Request timeout - try again'}), 504
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': 'Unable to fetch advocate report', 'details': str(e)}), 502
+    except ValueError as e:
+        return jsonify({'error': 'Invalid JSON response from external API', 'details': str(e)}), 502
+    except Exception as e:
+        return jsonify({'error': 'Unexpected error', 'details': str(e)}), 500
 
 @app.route('/getSittingArrangements', methods=['GET'])
 def get_sitting_arrangements():
-    url = 'https://tshc.gov.in/processBodySetionTypes?id=197'
     try:
-        # The HC site occasionally presents an untrusted cert; we skip verification and
-        # retry over HTTP if HTTPS still fails.
+        url = 'https://tshc.gov.in/processBodySetionTypes?id=197'
         response = requests.get(url, verify=False, timeout=20)
         
-        # DEBUG: Print response details
-        print("\n" + "="*80)
-        print("SITTING ARRANGEMENTS DEBUG")
-        print("="*80)
-        print(f"URL: {url}")
-        print(f"Status Code: {response.status_code}")
-        print(f"Response Length: {len(response.text)} characters")
-        print("\nFirst 2000 characters of HTML:")
-        print(response.text[:2000])
-        print("="*80 + "\n")
+        if response.status_code != 200:
+            return jsonify({'error': f'External API returned {response.status_code}'}), 502
         
-    except SSLError:
-        try:
-            response = requests.get(url.replace('https://', 'http://'), verify=False, timeout=20)
-        except RequestException as exc:
-            return jsonify({'error': 'Unable to fetch sitting arrangements', 'details': str(exc)}), 502
-    except RequestException as exc:
-        return jsonify({'error': 'Unable to fetch sitting arrangements', 'details': str(exc)}), 502
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-    soup = BeautifulSoup(response.text, 'html.parser')
+        # Find all sitting arrangement list items
+        arrangements = []
+        all_lis = soup.find_all('li')
+        
+        for li in all_lis:
+            a_tag = li.find('a')
+            if a_tag and 'Sitting Arrangement' in a_tag.text:
+                arrangements.append({
+                    'title': a_tag.text.strip(),
+                    'link': a_tag.get('href', ''),
+                    'timestamp': datetime.now().isoformat()
+                })
 
-    # Find all sitting arrangement list items
-    arrangements = []
-    all_lis = soup.find_all('li')
-    print(f"Found {len(all_lis)} <li> elements")
-    
-    for li in all_lis:
-        a_tag = li.find('a')
-        if a_tag and 'Sitting Arrangement' in a_tag.text:
-            arrangements.append({
-                'title': a_tag.text.strip(),
-                'link': a_tag.get('href', ''),
-                'timestamp': datetime.now().isoformat()
-            })
-            print(f"  Found: {a_tag.text.strip()}")
-
-    print(f"Total arrangements found: {len(arrangements)}\n")
-
-    return jsonify({
-        'arrangements': arrangements,
-        'lastUpdated': datetime.now().isoformat()
-    })
+        return jsonify({
+            'arrangements': arrangements,
+            'lastUpdated': datetime.now().isoformat()
+        })
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Request timeout - try again'}), 504
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': 'Unable to fetch sitting arrangements', 'details': str(e)}), 502
+    except Exception as e:
+        return jsonify({'error': 'Unexpected error', 'details': str(e)}), 500
 
 # Catch-all route for React app (must be last)
 @app.route('/', defaults={'path': ''})

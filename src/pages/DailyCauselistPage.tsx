@@ -47,7 +47,14 @@ export default function DailyCauselistPage() {
       const resp = await fetch(url);
       
       if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        let errorMsg = `Server error: ${resp.status}`;
+        try {
+          const errData = await resp.json();
+          errorMsg = errData.error || errorMsg;
+        } catch {
+          errorMsg = await resp.text() || errorMsg;
+        }
+        throw new Error(errorMsg);
       }
       
       const result = await resp.json();

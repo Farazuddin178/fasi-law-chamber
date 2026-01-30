@@ -23,6 +23,18 @@ export default function SittingArrangementsPage() {
         ? 'http://localhost:5001'
         : ''; // Empty string = use same domain
       const response = await fetch(`${backendURL}/getSittingArrangements`);
+      
+      if (!response.ok) {
+        let errorMsg = `Server error: ${response.status}`;
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        } catch {
+          errorMsg = await response.text() || errorMsg;
+        }
+        throw new Error(errorMsg);
+      }
+      
       const data = await response.json();
       
       const newArrangements = data.arrangements || [];

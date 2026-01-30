@@ -9,9 +9,9 @@ export default function CaseLookupPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [mtype, setMtype] = useState('WP');
-  const [mno, setMno] = useState('123');
-  const [myear, setMyear] = useState('2026');
+  const [mtype, setMtype] = useState('');
+  const [mno, setMno] = useState('');
+  const [myear, setMyear] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,15 +56,30 @@ export default function CaseLookupPage() {
         : ''; // Empty string = use same domain
       const url = `${backendURL}/getCaseDetails?mtype=${encodeURIComponent(type)}&mno=${encodeURIComponent(number)}&myear=${encodeURIComponent(year)}`;
       const resp = await fetch(url);
+      
+      if (!resp.ok) {
+        let errorMsg = `Server error: ${resp.status}`;
+        try {
+          const errData = await resp.json();
+          errorMsg = errData.error || errorMsg;
+        } catch {
+          errorMsg = await resp.text() || errorMsg;
+        }
+        setError(errorMsg);
+        return;
+      }
+      
       const contentType = resp.headers.get('content-type') || '';
       const data = contentType.includes('application/json') ? await resp.json() : await resp.text();
       if (typeof data === 'string') {
         setError('Unexpected response from server');
+      } else if (data.error) {
+        setError(data.error);
       } else {
         setResult(data);
       }
     } catch (e:any) {
-      setError(e?.message || String(e));
+      setError(e?.message || 'Failed to fetch case details');
     } finally {
       setLoading(false);
     }
