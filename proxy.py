@@ -28,7 +28,8 @@ def get_case_details():
             return jsonify({'error': 'Missing parameters: mtype, mno, myear required'}), 400
         
         url = f'https://csis.tshc.gov.in/getCaseDetails?mtype={mtype}&mno={mno}&myear={myear}'
-        response = requests.get(url, timeout=15)
+        # Increased timeout to 30 seconds for slow external APIs
+        response = requests.get(url, timeout=30, verify=False)
         
         if response.status_code != 200:
             return jsonify({'error': f'External API returned {response.status_code}'}), 502
@@ -36,7 +37,7 @@ def get_case_details():
         data = response.json()
         return jsonify(data)
     except requests.exceptions.Timeout:
-        return jsonify({'error': 'Request timeout - try again'}), 504
+        return jsonify({'error': 'External API is slow - please try again'}), 504
     except requests.exceptions.RequestException as e:
         return jsonify({'error': 'Unable to fetch case details', 'details': str(e)}), 502
     except ValueError as e:
@@ -54,7 +55,8 @@ def get_adv_report():
             return jsonify({'error': 'Missing parameters: advcode and year required'}), 400
         
         url = f'https://csis.tshc.gov.in/getAdvReport?advcode={advcode}&year={year}'
-        response = requests.get(url, timeout=15)
+        # Increased timeout to 30 seconds for slow external APIs
+        response = requests.get(url, timeout=30, verify=False)
         
         if response.status_code != 200:
             return jsonify({'error': f'External API returned {response.status_code}'}), 502
@@ -62,7 +64,7 @@ def get_adv_report():
         data = response.json()
         return jsonify(data)
     except requests.exceptions.Timeout:
-        return jsonify({'error': 'Request timeout - try again'}), 504
+        return jsonify({'error': 'External API is slow - please try again'}), 504
     except requests.exceptions.RequestException as e:
         return jsonify({'error': 'Unable to fetch advocate report', 'details': str(e)}), 502
     except ValueError as e:
