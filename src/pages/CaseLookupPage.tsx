@@ -56,21 +56,28 @@ export default function CaseLookupPage() {
         : ''; // Empty string = use same domain
       const url = `${backendURL}/getCaseDetails?mtype=${encodeURIComponent(type)}&mno=${encodeURIComponent(number)}&myear=${encodeURIComponent(year)}`;
       const resp = await fetch(url);
+        const contentType = resp.headers.get('content-type') || '';
+       
+        // Read response body once
+        const bodyText = await resp.text();
+       
       
       if (!resp.ok) {
         let errorMsg = `Server error: ${resp.status}`;
         try {
-          const errData = await resp.json();
+           const errData = JSON.parse(bodyText);
           errorMsg = errData.error || errorMsg;
         } catch {
-          errorMsg = await resp.text() || errorMsg;
+           errorMsg = bodyText || errorMsg;
         }
         setError(errorMsg);
         return;
       }
       
-      const contentType = resp.headers.get('content-type') || '';
-      const data = contentType.includes('application/json') ? await resp.json() : await resp.text();
+       // Parse JSON from already-read body
+       const data = contentType.includes('application/json') 
+         ? JSON.parse(bodyText)
+         : null;
       if (typeof data === 'string') {
         setError('Unexpected response from server');
       } else if (data.error) {

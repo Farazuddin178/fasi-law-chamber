@@ -45,19 +45,28 @@ export default function DailyCauselistPage() {
       
       console.log('Fetching from:', url);
       const resp = await fetch(url);
+        const contentType = resp.headers.get('content-type') || '';
+       
+        // Read response body once
+        const bodyText = await resp.text();
+       
       
       if (!resp.ok) {
         let errorMsg = `Server error: ${resp.status}`;
         try {
-          const errData = await resp.json();
+           const errData = JSON.parse(bodyText);
           errorMsg = errData.error || errorMsg;
         } catch {
-          errorMsg = await resp.text() || errorMsg;
+           errorMsg = bodyText || errorMsg;
         }
         throw new Error(errorMsg);
+             // Parse JSON from already-read body
+             const result = contentType.includes('application/json') 
+               ? JSON.parse(bodyText)
+               : null;
+       
       }
       
-      const result = await resp.json();
       
       if (result.error) {
         throw new Error(result.error || 'Server returned an error');

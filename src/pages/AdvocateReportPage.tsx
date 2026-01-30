@@ -55,23 +55,26 @@ export default function AdvocateReportPage() {
       }
       
       const data = await resp.json();
-      if (!data || !data.advreport) throw new Error('No report found');
-      setReport(data.advreport as AdvReport);
-      toast.success('Report loaded');
-    } catch (e: any) {
-      toast.error(e?.message || 'Failed to load report');
+          const contentType = resp.headers.get('content-type') || '';
+      
+          // Read response body once
+          const bodyText = await resp.text();
+      
       setReport(null);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const parseCaseNumber = (caseNumber: string) => {
+               const errData = JSON.parse(bodyText);
+               errorMsg = errData.error || errorMsg;
+             } catch {
+               errorMsg = bodyText || errorMsg;
     const match = caseNumber.match(/^([A-Z]+)\s*(\d+)\/(\d{4})$/i);
     if (!match) return null;
     const [, mtype, mno, myear] = match;
     return {
-      mtype: mtype.toUpperCase(),
+          // Parse JSON from already-read body
+          const data = contentType.includes('application/json') 
+            ? JSON.parse(bodyText)
+            : null;
       mno,
       myear
     };

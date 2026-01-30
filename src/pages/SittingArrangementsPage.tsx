@@ -23,19 +23,27 @@ export default function SittingArrangementsPage() {
         ? 'http://localhost:5001'
         : ''; // Empty string = use same domain
       const response = await fetch(`${backendURL}/getSittingArrangements`);
+        const contentType = response.headers.get('content-type') || '';
+       
+        // Read response body once
+        const bodyText = await response.text();
+       
       
       if (!response.ok) {
         let errorMsg = `Server error: ${response.status}`;
         try {
-          const errData = await response.json();
+           const errData = JSON.parse(bodyText);
           errorMsg = errData.error || errorMsg;
         } catch {
-          errorMsg = await response.text() || errorMsg;
+           errorMsg = bodyText || errorMsg;
         }
         throw new Error(errorMsg);
       }
       
-      const data = await response.json();
+       // Parse JSON from already-read body
+       const data = contentType.includes('application/json') 
+         ? JSON.parse(bodyText)
+         : null;
       
       const newArrangements = data.arrangements || [];
       
