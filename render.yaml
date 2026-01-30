@@ -3,23 +3,29 @@ services:
   - type: web
     name: fasi-law-backend
     env: python
+    region: oregon
+    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn proxy:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn proxy:app --host=0.0.0.0 --port=$PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: PORT
-        value: 5001
+        value: "3.11.0"
   
   # Frontend - React + Vite static site
   - type: web
     name: fasi-law-frontend
     env: static
-    buildCommand: npm install && npm run build
+    region: oregon
+    plan: free
+    buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_BACKEND_URL
-        sync: false 
+        value: https://fasi-law-backend.onrender.com
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_ANON_KEY
