@@ -1,11 +1,12 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import requests
 from requests.exceptions import SSLError, RequestException
 from bs4 import BeautifulSoup
 from datetime import datetime
+import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='dist', static_url_path='')
 CORS(app)
 
 # Suppress insecure request warnings for verify=False usage on the HC site
@@ -85,6 +86,19 @@ def get_sitting_arrangements():
         'arrangements': arrangements,
         'lastUpdated': datetime.now().isoformat()
     })
+
+@app.route('/')
+def serve_index():
+    """Serve the React frontend index"""
+    return send_from_directory('dist', 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    """Serve static files from dist folder, fall back to index.html for SPA routing"""
+    full_path = os.path.join('dist', path)
+    if os.path.exists(full_path) and os.path.isfile(full_path):
+        return send_from_directory('dist', path)
+    return send_from_directory('dist', 'index.html')
 
 if __name__ == '__main__':
     print("=" * 50)

@@ -1,32 +1,14 @@
 services:
-  # Backend - Python Flask proxy server
+  # Backend - Python Flask proxy server + Frontend serving
   - type: web
-    name: fasi-law-backend
+    name: fasi-law-chamber
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && pnpm install && pnpm run build
     startCommand: gunicorn proxy:app --host=0.0.0.0 --port=$PORT
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
-  
-  # Frontend - React + Vite static site
-  - type: web
-    name: fasi-law-frontend
-    env: static
-    region: oregon
-    plan: free
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_BACKEND_URL
-        value: https://fasi-law-backend.onrender.com
-      - key: VITE_SUPABASE_URL
-        sync: false
-      - key: VITE_SUPABASE_ANON_KEY
-        sync: false
+      - key: NODE_VERSION
+        value: "22"
