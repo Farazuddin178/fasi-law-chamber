@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: free
     buildCommand: bash build.sh
-    startCommand: gunicorn proxy:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn proxy:app --bind 0.0.0.0:$PORT --timeout 120
     envVars:
       - key: PYTHON_VERSION
         value: "3.13.4"
