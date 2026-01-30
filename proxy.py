@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import os
 
-app = Flask(__name__, static_folder='dist', static_url_path='')
+app = Flask(__name__, static_folder=None)
 CORS(app)
 
 # Suppress insecure request warnings for verify=False usage on the HC site
@@ -112,10 +112,12 @@ def get_sitting_arrangements():
 @app.route('/<path:path>')
 def serve_react_app(path):
     """Serve static files or fall back to index.html for client-side routing"""
-    if path and os.path.exists(os.path.join('dist', path)):
-        return send_from_directory('dist', path)
-    else:
-        return send_from_directory('dist', 'index.html')
+    dist_dir = os.path.join(app.root_path, 'dist')
+    if path:
+        file_path = os.path.join(dist_dir, path)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return send_from_directory(dist_dir, path)
+    return send_from_directory(dist_dir, 'index.html')
 
 if __name__ == '__main__':
     print("=" * 50)
