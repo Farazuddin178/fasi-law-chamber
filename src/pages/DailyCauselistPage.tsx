@@ -54,19 +54,22 @@ export default function DailyCauselistPage() {
       if (!resp.ok) {
         let errorMsg = `Server error: ${resp.status}`;
         try {
-           const errData = JSON.parse(bodyText);
+          const errData = JSON.parse(bodyText);
           errorMsg = errData.error || errorMsg;
         } catch {
-           errorMsg = bodyText || errorMsg;
+          errorMsg = bodyText || errorMsg;
         }
         throw new Error(errorMsg);
-             // Parse JSON from already-read body
-             const result = contentType.includes('application/json') 
-               ? JSON.parse(bodyText)
-               : null;
-       
       }
       
+      // Parse JSON from already-read body
+      const result = contentType.includes('application/json') 
+        ? JSON.parse(bodyText)
+        : null;
+      
+      if (!result) {
+        throw new Error('Unexpected response from server');
+      }
       
       if (result.error) {
         throw new Error(result.error || 'Server returned an error');

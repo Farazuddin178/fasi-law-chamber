@@ -42,39 +42,43 @@ export default function AdvocateReportPage() {
       
       const url = `${backendURL}/getAdvReport?advcode=${encodeURIComponent(advCode.trim())}&year=${encodeURIComponent(year.trim())}`;
       const resp = await fetch(url);
-      
+      const contentType = resp.headers.get('content-type') || '';
+
+      // Read response body once
+      const bodyText = await resp.text();
+
       if (!resp.ok) {
         let errorMsg = `Server error: ${resp.status}`;
         try {
-          const errData = await resp.json();
+          const errData = JSON.parse(bodyText);
           errorMsg = errData.error || errorMsg;
         } catch {
-          errorMsg = await resp.text() || errorMsg;
+          errorMsg = bodyText || errorMsg;
         }
         throw new Error(errorMsg);
       }
-      
-      const data = await resp.json();
-          const contentType = resp.headers.get('content-type') || '';
-      
-          // Read response body once
-          const bodyText = await resp.text();
-      
+
+      const data = contentType.includes('application/json')
+        ? JSON.parse(bodyText)
+        : null;
+
+      if (!data || !data.advreport) throw new Error('No report found');
+      setReport(data.advreport as AdvReport);
+      toast.success('Report loaded');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to load report');
       setReport(null);
     } finally {
       setLoading(false);
-               const errData = JSON.parse(bodyText);
-               errorMsg = errData.error || errorMsg;
-             } catch {
-               errorMsg = bodyText || errorMsg;
+    }
+  };
+
+  const parseCaseNumber = (caseNumber: string) => {
     const match = caseNumber.match(/^([A-Z]+)\s*(\d+)\/(\d{4})$/i);
     if (!match) return null;
     const [, mtype, mno, myear] = match;
     return {
-          // Parse JSON from already-read body
-          const data = contentType.includes('application/json') 
-            ? JSON.parse(bodyText)
-            : null;
+      mtype: mtype.toUpperCase(),
       mno,
       myear
     };
