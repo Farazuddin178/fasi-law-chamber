@@ -260,8 +260,7 @@ export default function CaseLookupPage() {
         }
 
         // Update the case
-        console.log('Updating case with user ID:', user.id);
-        const { error } = await casesDB.update(existingCase.id, caseData, user.id);
+        const { error } = await casesDB.update(existingCase.id, caseData);
         if (error) {
           console.error('Update error:', error);
           throw new Error(error);

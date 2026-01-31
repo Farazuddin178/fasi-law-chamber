@@ -149,14 +149,15 @@ export default function AdvocateReportPage() {
         // Normalize data for insert/update
         const rawCase = advCase as any;
         
-        // Try to find date fields using robust parser
-        const possibleDate = rawCase.dt_reg || rawCase.reg_date || rawCase.date_filed || rawCase.filing_date || rawCase.dt_filing;
-        const filingDate = parseIndianDate(possibleDate);
+        // Extract all possible date fields
+        const filingDate = parseIndianDate(rawCase.filingDate || rawCase.dt_reg || rawCase.reg_date || rawCase.date_filed || rawCase.filing_date || rawCase.dt_filing);
+        const regDate = parseIndianDate(rawCase.registrationDate || rawCase.regDate || rawCase.dt_reg);
+        const listingDate = parseIndianDate(rawCase.listingDate || rawCase.nextHearingDate || rawCase.date_listing);
         
         // Robust field extraction with fallbacks
-        const petName = advCase.petName || rawCase.pname || rawCase.pet_name || rawCase.petitioner_name || rawCase.petitioner;
-        const resName = advCase.resName || rawCase.rname || rawCase.res_name || rawCase.respondent_name || rawCase.respondent;
-        const statusStr = (advCase.status || rawCase.case_status || rawCase.status || '').toUpperCase();
+        const petName = advCase.petName || rawCase.pname || rawCase.pet_name || rawCase.petitioner_name || rawCase.petitioner || '';
+        const resName = advCase.resName || rawCase.rname || rawCase.res_name || rawCase.respondent_name || rawCase.respondent || '';
+        const statusStr = (advCase.status || rawCase.case_status || rawCase.caseStatus || '').toUpperCase();
         
         // Extract category from case number if possible
         let category = null;
@@ -165,20 +166,28 @@ export default function AdvocateReportPage() {
           if (match) category = match[1].toUpperCase();
         }
 
-        // NOTE: Advocate Report API only returns basic case information (case number, parties, status).
-        // It does NOT return detailed data like IAs, Orders, Connected Matters, etc.
-        // Use Case Lookup for comprehensive case details.
+        // Extract all available fields from the API response
         const caseData: Partial<Case> = {
           case_number: normalizedCaseNumber,
-          sr_number: advCase.srNumber || rawCase.sr_no || rawCase.sr_number || null,
-          primary_petitioner: petName || null,
-          primary_respondent: resName || null,
-          status: ['DISPOSED', 'DISMISSED', 'ALLOWED', 'GRANTED'].includes(statusStr) ? 'disposed' : 'pending',
+          sr_number: advCase.srNumber || rawCase.sr_no || rawCase.srNumber || rawCase.sr_number || null,
+          cnr: rawCase.cnr || rawCase.cnrNo || rawCase.cnrno || null,
+          primary_petitioner: petName,
+          primary_respondent: resName,
+          petitioner_adv: rawCase.petAdvocate || rawCase.petitionerAdv || rawCase.petitioner_adv || null,
+          respondent_adv: rawCase.resAdvocate || rawCase.respondentAdv || rawCase.respondent_adv || null,
+          status: ['DISPOSED', 'DISMISSED', 'ALLOWED', 'GRANTED', 'ALLOWED-WITHDRAWN'].includes(statusStr) ? 'disposed' : 'pending',
           filing_date: filingDate,
-          registration_date: filingDate,
+          registration_date: regDate || filingDate,
+          listing_date: listingDate,
           category: category,
+          district: rawCase.district || null,
+          purpose: rawCase.purpose || rawCase.stage || null,
+          jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || null,
           created_by: user.id,
         };
+        
+        // Log the extracted data for debugging
+        console.log('Extracted case data:', caseData);
 
         let existingCase: any = null;
         let checkError: any = null;
@@ -229,8 +238,7 @@ export default function AdvocateReportPage() {
             .update({
               ...caseData,
               updated_at: new Date().toISOString(),
-              changed_by: user.id, // Pass user ID for audit triggers
-            } as any)
+            })
             .eq('id', existingCase.id);
 
           if (updateError) {

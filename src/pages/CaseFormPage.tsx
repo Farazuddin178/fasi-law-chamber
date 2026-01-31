@@ -309,7 +309,6 @@ export default function CaseFormPage() {
           .update({
             ...caseData,
             updated_at: new Date().toISOString(),
-            changed_by: user?.id
           })
           .eq('id', id);
 
