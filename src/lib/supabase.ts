@@ -209,7 +209,7 @@ export interface Notification {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   is_read: boolean;
   read_at?: string | null;
-  related_id?: string | null;
+  related_id?: any;
   related_type?: string | null;
   metadata?: any;
   data?: any;
