@@ -27,11 +27,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (savedUser) {
       const userData = JSON.parse(savedUser);
-      setUser(userData);
+      const normalizedUser = {
+        ...userData,
+        id: userData?.id ?? userData?.user_id ?? userData?.uid,
+      };
+      setUser(normalizedUser);
       setLoginLogId(savedLoginLogId);
       
       // Initialize FCM and notifications
-      initializeFCM(userData.id);
+      if (normalizedUser.id) {
+        initializeFCM(normalizedUser.id);
+      }
     }
     
     setLoading(false);
@@ -98,11 +104,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const userData = data.data.user;
+      const normalizedUser = {
+        ...userData,
+        id: userData?.id ?? userData?.user_id ?? userData?.uid,
+      };
       const logId = data.data.login_log_id;
 
-      setUser(userData);
+      setUser(normalizedUser);
       setLoginLogId(logId);
-      localStorage.setItem('current_user', JSON.stringify(userData));
+      localStorage.setItem('current_user', JSON.stringify(normalizedUser));
       localStorage.setItem('login_log_id', logId);
 
       toast.success('Login successful!');

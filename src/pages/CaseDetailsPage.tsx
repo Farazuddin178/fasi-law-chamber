@@ -29,6 +29,7 @@ export default function CaseDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const userId = (user as any)?.id ?? (user as any)?.user_id ?? (user as any)?.uid ?? null;
   const [caseData, setCaseData] = useState<Case | null>(null);
   const [loading, setLoading] = useState(true);
   const [submissions, setSubmissions] = useState<CaseSubmission[]>([]);
@@ -189,14 +190,14 @@ export default function CaseDetailsPage() {
       if (error) throw error;
       
       // Create audit log for submission status update (ensures changed_by is populated)
-      if (id && user?.id) {
+      if (id && userId) {
         try {
           await auditLogsDB.create(
             id,
             'submission_status_updated',
             'Previous status',
             `Submission marked as ${status}`,
-            user.id
+            userId
           );
         } catch (auditError: any) {
           console.error('Audit log creation failed:', auditError);
@@ -212,7 +213,7 @@ export default function CaseDetailsPage() {
 
   const requestChanges = async (submissionId: string) => {
     const changes = prompt('What changes are needed?');
-    if (!changes || !user?.id) return;
+    if (!changes || !userId) return;
 
     try {
       const { error } = await supabase
@@ -220,7 +221,7 @@ export default function CaseDetailsPage() {
         .update({
           status: 'changes_requested',
           changes_requested: changes,
-          changes_requested_by: user.id,
+          changes_requested_by: userId,
           changes_requested_date: new Date().toISOString()
         })
         .eq('id', submissionId);
@@ -228,14 +229,14 @@ export default function CaseDetailsPage() {
       if (error) throw error;
       
       // Create audit log for changes requested (ensures changed_by is populated)
-      if (id && user?.id) {
+      if (id && userId) {
         try {
           await auditLogsDB.create(
             id,
             'changes_requested',
             'Previous data',
             `Changes requested: ${changes}`,
-            user.id
+            userId
           );
         } catch (auditError: any) {
           console.error('Audit log creation failed:', auditError);
@@ -325,7 +326,7 @@ Generated: ${new Date().toLocaleString()}
 
   // Helper to update array fields for the case
   const updateCaseArrayField = async (field: string, newArray: any[]) => {
-    if (!id || !user?.id) return;
+    if (!id || !userId) return;
     try {
       const payload: any = {};
       payload[field] = newArray;
@@ -339,7 +340,7 @@ Generated: ${new Date().toLocaleString()}
           field,
           'Previous data',
           `${field} updated`,
-          user.id
+          userId
         );
       } catch (auditError: any) {
         console.error('Audit log creation failed:', auditError);

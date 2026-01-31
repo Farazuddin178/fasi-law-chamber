@@ -62,6 +62,7 @@ export default function AdvocateReportPage() {
   const [report, setReport] = useState<AdvReport | null>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const userId = (user as any)?.id ?? (user as any)?.user_id ?? (user as any)?.uid ?? null;
 
   const fetchReport = async () => {
     if (!advCode.trim()) {
@@ -128,7 +129,7 @@ export default function AdvocateReportPage() {
     }
 
     // CRITICAL: Check user authentication to ensure changed_by is populated
-    if (!user?.id) {
+    if (!userId) {
       toast.error('User not authenticated. Please log in to add cases.');
       return;
     }
@@ -195,7 +196,7 @@ export default function AdvocateReportPage() {
             district: rawCase.district || null,
             purpose: rawCase.purpose || rawCase.stage || null,
             jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || null,
-            created_by: user.id, // CRITICAL: Always set created_by from authenticated user
+            created_by: userId, // CRITICAL: Always set created_by from authenticated user
           };
           
           // Log the extracted data for debugging
@@ -251,7 +252,7 @@ export default function AdvocateReportPage() {
                   'case_added',
                   '',
                   `Case added from Advocate Report for ${report.advName}`,
-                  user.id // CRITICAL: Pass authenticated user ID for changed_by field
+                  userId // CRITICAL: Pass authenticated user ID for changed_by field
                 );
               }
             }
@@ -325,7 +326,7 @@ export default function AdvocateReportPage() {
                       change.field,
                       String(change.oldValue),
                       String(change.newValue),
-                      user.id // CRITICAL: Pass authenticated user ID for changed_by field
+                      userId // CRITICAL: Pass authenticated user ID for changed_by field
                     );
                   }
                   console.log(`Updated case ${normalizedCaseNumber} with ${changes.length} field(s)`);
@@ -362,7 +363,7 @@ export default function AdvocateReportPage() {
                     'case_added',
                     '',
                     `Case added from Advocate Report for ${report.advName}`,
-                    user.id // CRITICAL: Pass authenticated user ID for changed_by field
+                      userId // CRITICAL: Pass authenticated user ID for changed_by field
                   );
                 } catch (auditError: any) {
                   // Log audit error but don't fail the case insertion

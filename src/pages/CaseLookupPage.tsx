@@ -7,6 +7,7 @@ import { Save } from 'lucide-react';
 
 export default function CaseLookupPage() {
   const { user } = useAuth();
+  const userId = (user as any)?.id ?? (user as any)?.user_id ?? (user as any)?.uid ?? null;
   const navigate = useNavigate();
   const location = useLocation();
   const [mtype, setMtype] = useState('');
@@ -110,7 +111,7 @@ export default function CaseLookupPage() {
       toast.error('No case data to save');
       return;
     }
-    if (!user?.id) {
+    if (!userId) {
       toast.error('Please login to save cases');
       return;
     }
@@ -271,7 +272,7 @@ export default function CaseLookupPage() {
           await auditLogsDB.trackCaseChanges(
             existingCase,
             { ...caseData, id: existingCase.id },
-            user.id
+            userId
           );
         } catch (auditError: any) {
           console.error('Audit log creation failed:', auditError);
@@ -293,7 +294,7 @@ export default function CaseLookupPage() {
       } else {
         // Create New Case
         console.log('Creating new case with user ID:', user.id);
-        const { data, error } = await casesDB.create(caseData, user.id);
+        const { data, error } = await casesDB.create(caseData, userId);
         if (error) {
           console.error('Create error:', error);
           throw new Error(error);
@@ -307,7 +308,7 @@ export default function CaseLookupPage() {
               'case_added',
               '',
               'Case added from Case Lookup',
-              user.id
+              userId
             );
           } catch (auditError: any) {
             console.error('Audit log creation failed:', auditError);

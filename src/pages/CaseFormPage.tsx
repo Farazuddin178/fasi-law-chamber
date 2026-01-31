@@ -10,6 +10,7 @@ export default function CaseFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const userId = (user as any)?.id ?? (user as any)?.user_id ?? (user as any)?.uid ?? null;
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [caseExists, setCaseExists] = useState(false);
@@ -316,14 +317,14 @@ export default function CaseFormPage() {
         if (error) throw error;
         
         // Create audit log for case update (ensures changed_by is populated)
-        if (user?.id) {
+        if (userId) {
           try {
             await auditLogsDB.create(
               id,
               'case_updated',
               'Previous data',
               'Case updated from form',
-              user.id
+              userId
             );
           } catch (auditError: any) {
             console.error('Audit log creation failed:', auditError);
@@ -338,7 +339,7 @@ export default function CaseFormPage() {
           .from('cases')
           .insert({
             ...caseData,
-            created_by: user?.id,
+            created_by: userId,
           })
           .select()
           .single();
@@ -346,14 +347,14 @@ export default function CaseFormPage() {
         if (error) throw error;
         
         // Create audit log for new case (ensures changed_by is populated)
-        if (data?.id && user?.id) {
+        if (data?.id && userId) {
           try {
             await auditLogsDB.create(
               data.id,
               'case_added',
               '',
               'Case created from form',
-              user.id
+              userId
             );
           } catch (auditError: any) {
             console.error('Audit log creation failed:', auditError);
