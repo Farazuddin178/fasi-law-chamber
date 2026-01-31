@@ -1,28 +1,32 @@
 -- Migration: Add missing columns to notifications table
--- This fixes the "column related_id of relation notifications does not exist" error
--- and "column related_type of relation notifications does not exist" error
+-- Fixes errors like "column related_id does not exist", "column related_type does not exist", "column data does not exist"
 -- Created: 2026-01-31
 
--- Add related_id column to notifications table if it doesn't exist
+-- Add all missing columns to notifications table
 ALTER TABLE public.notifications
 ADD COLUMN IF NOT EXISTS related_id UUID;
 
--- Add related_type column to notifications table if it doesn't exist
 ALTER TABLE public.notifications
 ADD COLUMN IF NOT EXISTS related_type VARCHAR(50);
 
--- Add index on related_id for better query performance
+ALTER TABLE public.notifications
+ADD COLUMN IF NOT EXISTS data JSONB;
+
+-- Add indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_notifications_related_id 
 ON public.notifications(related_id);
 
--- Add index on related_type for better query performance
 CREATE INDEX IF NOT EXISTS idx_notifications_related_type 
 ON public.notifications(related_type);
 
--- Add index on user_id for better query performance
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id 
 ON public.notifications(user_id);
 
--- Add index on created_at for better sorting performance
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read 
+ON public.notifications(is_read);
+
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at 
 ON public.notifications(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_is_read 
+ON public.notifications(user_id, is_read);

@@ -2,18 +2,19 @@
 
 ## Required Migration for Notifications
 
-The application uses a notifications system that requires additional columns on the notifications table. If you're getting errors like:
+The application uses a notifications system that requires additional columns on the notifications table. If you're getting ANY of these errors:
 
 ```
 column "related_id" of relation "notifications" does not exist
 column "related_type" of relation "notifications" does not exist
+column "data" of relation "notifications" does not exist
 ```
 
-You need to run the migration below.
+You MUST run the complete migration below to fix all issues at once.
 
 ## How to Apply the Migration
 
-### Method 1: Using Supabase Dashboard (Recommended)
+### Method 1: Using Supabase Dashboard (Recommended) ⭐
 
 1. Go to https://app.supabase.com
 2. Select your project
@@ -41,15 +42,18 @@ supabase migration up
 
 ### Method 3: Manual SQL Execution
 
-Run the following SQL directly in your Supabase SQL Editor:
+Copy and paste ALL of this SQL directly in your Supabase SQL Editor:
 
 ```sql
--- Add related_id and related_type columns to notifications table
+-- Add all missing columns to notifications table
 ALTER TABLE public.notifications
 ADD COLUMN IF NOT EXISTS related_id UUID;
 
 ALTER TABLE public.notifications
 ADD COLUMN IF NOT EXISTS related_type VARCHAR(50);
+
+ALTER TABLE public.notifications
+ADD COLUMN IF NOT EXISTS data JSONB;
 
 -- Add indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_notifications_related_id 
@@ -61,13 +65,19 @@ ON public.notifications(related_type);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id 
 ON public.notifications(user_id);
 
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read 
+ON public.notifications(is_read);
+
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at 
 ON public.notifications(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_is_read 
+ON public.notifications(user_id, is_read);
 ```
 
 ## Verify the Migration
 
-After running the migration, verify that the columns exist by running:
+After running the migration, verify that ALL columns exist by running:
 
 ```sql
 SELECT column_name, data_type 
@@ -76,23 +86,41 @@ WHERE table_name = 'notifications'
 ORDER BY ordinal_position;
 ```
 
-You should see both `related_id` (uuid type) and `related_type` (character varying type) in the results.
+You should see:
+- `related_id` (uuid type)
+- `related_type` (character varying type)
+- `data` (jsonb type)
 
 ## What This Migration Does
 
-1. **Adds `related_id` column** - This allows notifications to be linked to related entities (cases, tasks, documents, etc.) by their UUID
-2. **Adds `related_type` column** - This specifies the type of related entity ('task', 'case', 'document', etc.)
-3. **Creates indexes** - Improves query performance for filtering and sorting notifications by related entity
-4. **Uses IF NOT EXISTS** - Safe to run multiple times without errors
+1. **Adds `related_id` column** - Links notifications to related entities (tasks, cases, documents) by their UUID
+2. **Adds `related_type` column** - Specifies the type of related entity ('task', 'case', 'document', etc.)
+3. **Adds `data` column** - Stores additional JSON data for notifications
+4. **Creates indexes** - Improves query performance for filtering and sorting notifications
+5. **Uses IF NOT EXISTS** - Safe to run multiple times without errors
 
-## After Migration
+## After Migration Complete
 
-Once applied, you can:
-- Create tasks without errors
-- Send notifications successfully
-- Link notifications to related entities using the `related_id` field
+1. **Reload your app** (hard refresh with Ctrl+Shift+R or Cmd+Shift+R)
+2. **Clear browser cache** if errors persist
+3. Try creating a task again - it should work without any column errors!
 
-If you continue to see errors after running the migration, make sure:
-1. The migration ran successfully (no SQL errors)
-2. You're using the correct Supabase project URL and keys
-3. The application has been redeployed or the browser cache has been cleared
+## If You Still Get Errors
+
+This means one of these things:
+1. The migration didn't run successfully (check for SQL errors)
+2. You're looking at a cached version of the app
+3. The Supabase project isn't configured properly
+
+**Solution:**
+- Run the SQL again and confirm it says `executed successfully`
+- Hard refresh your browser (Ctrl+Shift+R)
+- Check the Supabase dashboard that you're on the correct project
+
+## Need Help?
+
+If errors persist after running the migration:
+1. Check that you're on the correct Supabase project
+2. Verify all three columns were added (run the verification SQL above)
+3. Clear your browser cache and reload
+4. If still stuck, check the Supabase logs for any trigger/function errors

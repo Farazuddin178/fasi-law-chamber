@@ -214,3 +214,4 @@ export interface Notification {
   metadata?: any;
   created_at: string;
 }
+  data?: any;

@@ -15,6 +15,7 @@ interface NotificationPayload {
   relatedId?: string; // ID of related entity (task, case, etc.)
   relatedType?: string; // Type of related entity
   metadata?: any;
+  data?: any;
 }
 
 class NotificationManager {
@@ -62,6 +63,7 @@ class NotificationManager {
       related_id: payload.relatedId || null,
       related_type: payload.relatedType || null,
       metadata: payload.metadata,
+      data: payload.data || null,
       is_read: false,
       read_at: null,
       created_at: new Date().toISOString(),
@@ -100,6 +102,7 @@ class NotificationManager {
       related_id: payload.relatedId || null,
       related_type: payload.relatedType || null,
       metadata: payload.metadata,
+      data: payload.data || null,
       is_read: false,
       read_at: null,
       created_at: new Date().toISOString(),
