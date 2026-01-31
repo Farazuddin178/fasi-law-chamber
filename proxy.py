@@ -5,9 +5,33 @@ from requests.exceptions import SSLError, RequestException
 from bs4 import BeautifulSoup
 from datetime import datetime
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
+
+# Import notification routes and cron service
+try:
+    from notification_routes import notifications_bp
+    from cron_service import cron_service
+    
+    # Register notification routes
+    app.register_blueprint(notifications_bp)
+    
+    # Start cron jobs
+    cron_service.start_all_jobs()
+    logging.info("Notification system initialized successfully")
+except ImportError as e:
+    logging.warning(f"Notification system not available - missing dependencies: {e}")
+    logging.info("Run: pip install twilio supabase apscheduler python-dotenv")
+except Exception as e:
+    logging.error(f"Failed to initialize notification system: {e}")
 
 # Suppress insecure request warnings for verify=False usage on the HC site
 requests.packages.urllib3.disable_warnings()

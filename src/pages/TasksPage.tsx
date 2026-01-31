@@ -3,6 +3,7 @@ import { supabase, Task, TaskComment, User, Case } from '@/lib/supabase';
 import { Plus, Filter, X, MessageCircle, Send, Edit, Trash, CheckCircle, Clock, AlertCircle, Calendar, Search, ThumbsUp, ThumbsDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { notificationHelpers } from '@/lib/database';
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -200,14 +201,17 @@ export default function TasksPage() {
               });
             }
             
-            // Get FCM tokens and attempt to send via backend
-            const { data: tokens } = await supabase
-              .from('fcm_tokens')
-              .select('token')
-              .eq('user_id', cleanedData.assigned_to);
-
-            if (tokens && tokens.length > 0) {
-              console.log(`Task assigned to ${assignedUser.full_name} - tokens available for notification`);
+            // Send WhatsApp & Email notifications via backend
+            try {
+              await notificationHelpers.notifyTaskAssigned(
+                data.id,
+                cleanedData.assigned_to,
+                user?.full_name || 'Admin'
+              );
+              console.log('External notifications sent successfully');
+            } catch (notifError) {
+              console.error('Failed to send external notifications:', notifError);
+              // Don't fail the task creation if notifications fail
             }
           }
         }
@@ -393,6 +397,17 @@ export default function TasksPage() {
         .eq('id', numericId);
 
       if (taskError) throw taskError;
+
+      // Notify admin of status change via backend
+      try {
+        await notificationHelpers.notifyTaskStatusChange(
+          selectedTask.id,
+          user?.full_name || 'User',
+          updateData.status
+        );
+      } catch (notifError) {
+        console.error('Failed to send admin notification:', notifError);
+      }
 
       // Show notification for status change
       if ('Notification' in window && Notification.permission === 'granted') {

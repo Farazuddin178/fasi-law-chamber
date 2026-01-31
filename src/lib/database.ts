@@ -826,3 +826,199 @@ export const subscriptions = {
     return supabase.removeChannel(channel);
   },
 };
+
+// ============================================================================
+// AUDIT LOGS - Case Change Tracking
+// ============================================================================
+
+export interface AuditLog {
+  id: string;
+  case_id: string;
+  changed_field: string;
+  old_value: string;
+  new_value: string;
+  changed_by: string;
+  timestamp: string;
+}
+
+export const auditLogsDB = {
+  // Get audit logs for a case
+  async getByCaseId(caseId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select(`
+          *,
+          users:changed_by(full_name, email)
+        `)
+        .eq('case_id', caseId)
+        .order('timestamp', { ascending: false });
+
+      if (error) throw error;
+      return { data: data || [], error: null };
+    } catch (error: any) {
+      return { data: [], error: error.message };
+    }
+  },
+
+  // Create audit log entry
+  async create(
+    caseId: string,
+    field: string,
+    oldValue: any,
+    newValue: any,
+    userId: string
+  ) {
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .insert([
+          {
+            case_id: caseId,
+            changed_field: field,
+            old_value: String(oldValue),
+            new_value: String(newValue),
+            changed_by: userId,
+            timestamp: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    }
+  },
+
+  // Track case changes and create audit logs
+  async trackCaseChanges(
+    oldCase: Partial<Case>,
+    newCase: Partial<Case>,
+    userId: string
+  ) {
+    const changes: Array<{ field: string; oldValue: any; newValue: any }> = [];
+
+    // Compare fields and track changes
+    const fieldsToTrack = [
+      'case_number',
+      'status',
+      'client_name',
+      'primary_petitioner',
+      'primary_respondent',
+      'filing_date',
+      'listing_date',
+      'disp_date',
+      'disp_type',
+      'category',
+      'subject',
+      'jud_name',
+    ];
+
+    for (const field of fieldsToTrack) {
+      const oldVal = oldCase[field as keyof Case];
+      const newVal = newCase[field as keyof Case];
+
+      if (oldVal !== newVal) {
+        changes.push({
+          field,
+          oldValue: oldVal,
+          newValue: newVal,
+        });
+      }
+    }
+
+    // Create audit log entries for each change
+    const results = [];
+    for (const change of changes) {
+      const result = await this.create(
+        newCase.id!,
+        change.field,
+        change.oldValue,
+        change.newValue,
+        userId
+      );
+      results.push(result);
+    }
+
+    return { changes: changes.length, results };
+  },
+};
+
+// ============================================================================
+// NOTIFICATION HELPER - Backend Integration
+// ============================================================================
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
+
+export const notificationHelpers = {
+  // Send task assignment notification
+  async notifyTaskAssigned(taskId: string, assigneeId: string, assignerName: string) {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/notifications/task-assigned`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId, assignee_id: assigneeId, assigner_name: assignerName }),
+      });
+      
+      if (!response.ok) throw new Error('Notification failed');
+      return await response.json();
+    } catch (error: any) {
+      console.error('Task notification failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Send hearing reminder
+  async notifyHearingReminder(caseId: string, assigneeIds: string[]) {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/notifications/hearing-reminder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ case_id: caseId, assignee_ids: assigneeIds }),
+      });
+      
+      if (!response.ok) throw new Error('Notification failed');
+      return await response.json();
+    } catch (error: any) {
+      console.error('Hearing reminder failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Send announcement notification
+  async notifyAnnouncement(title: string, content: string, postedBy: string, targetUsers: string | string[]) {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/notifications/announcement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, posted_by: postedBy, target_users: targetUsers }),
+      });
+      
+      if (!response.ok) throw new Error('Notification failed');
+      return await response.json();
+    } catch (error: any) {
+      console.error('Announcement notification failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Notify admin of task status change
+  async notifyTaskStatusChange(taskId: string, userName: string, newStatus: string) {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/notifications/task-status-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId, user_name: userName, new_status: newStatus }),
+      });
+      
+      if (!response.ok) throw new Error('Notification failed');
+      return await response.json();
+    } catch (error: any) {
+      console.error('Task status notification failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+};
+

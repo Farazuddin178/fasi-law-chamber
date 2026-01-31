@@ -3,6 +3,7 @@ import { supabase, User } from '@/lib/supabase';
 import { Plus, X, Trash, Eye, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { notificationHelpers } from '@/lib/database';
 
 interface Announcement {
   id: string;
@@ -107,7 +108,7 @@ export default function AnnouncementsPage() {
 
         if (error) throw error;
         
-        // Send notification to all users using centralized manager
+        // Send in-app notification to all users using centralized manager
         const { notificationManager } = await import('@/lib/notificationManager');
         await notificationManager.notifyAnnouncement(
           formData.title,
@@ -115,7 +116,21 @@ export default function AnnouncementsPage() {
           'medium' // Default priority
         );
         
-        toast.success('Announcement created successfully');
+        // Send WhatsApp & Email notifications via backend
+        try {
+          await notificationHelpers.notifyAnnouncement(
+            formData.title,
+            formData.content,
+            user?.full_name || 'Admin',
+            'all' // Send to all users
+          );
+          console.log('External announcement notifications sent');
+        } catch (notifError) {
+          console.error('Failed to send external notifications:', notifError);
+          // Don't fail announcement creation if notifications fail
+        }
+        
+        toast.success('Announcement created and notifications sent');
       }
 
       resetForm();
