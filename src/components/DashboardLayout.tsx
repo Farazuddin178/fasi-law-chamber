@@ -70,6 +70,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Cases', path: '/cases', icon: <FolderOpen className="w-5 h-5" /> },
     { name: 'Case Lookup', path: '/case-lookup', icon: <Scale className="w-5 h-5" /> },
     { name: 'Advocate Report', path: '/advocate-report', icon: <UserCircle2 className="w-5 h-5" /> },
+    { name: 'Daily Causelist', path: '/daily-causelist', icon: <CalendarDays className="w-5 h-5" /> },
     { name: 'Sitting Arrangements', path: '/sitting-arrangements', icon: <BookOpen className="w-5 h-5" /> },
     { name: 'Hearings', path: '/hearings', icon: <Gavel className="w-5 h-5" /> },
     { name: 'Tasks', path: '/tasks', icon: <ListTodo className="w-5 h-5" /> },

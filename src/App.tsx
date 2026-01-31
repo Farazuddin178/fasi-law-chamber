@@ -23,6 +23,7 @@ import LinksPage from './pages/LinksPage';
 import CalendarPage from './pages/CalendarPage';
 import CaseLookupPage from './pages/CaseLookupPage';
 import AdvocateReportPage from './pages/AdvocateReportPage';
+import DailyCauselistPage from './pages/DailyCauselistPage';
 import SittingArrangementsPage from './pages/SittingArrangementsPage';
 import NotificationsPage from './pages/NotificationsPage';
 
@@ -69,6 +70,7 @@ function AppRoutes() {
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/calendar" element={<CalendarPage />} />
                 <Route path="/advocate-report" element={<AdvocateReportPage />} />
+                <Route path="/daily-causelist" element={<DailyCauselistPage />} />
                 <Route path="/case-lookup" element={<CaseLookupPage />} />
                 <Route path="/sitting-arrangements" element={<SittingArrangementsPage />} />
                 <Route path="/links" element={<LinksPage />} />

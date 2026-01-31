@@ -20,6 +20,39 @@ interface AdvReport {
   caseDetails: AdvCase[];
 }
 
+const parseIndianDate = (dateStr: string | any) => {
+  if (!dateStr) return null;
+  if (typeof dateStr !== 'string') return null;
+  
+  const cleanStr = dateStr.trim();
+  if (!cleanStr) return null;
+
+  try {
+    // Try standard date constructor first if it matches YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(cleanStr)) {
+        const d = new Date(cleanStr);
+        if (!isNaN(d.getTime())) return d.toISOString();
+    }
+
+    // Handle DD/MM/YYYY or DD-MM-YYYY
+    const parts = cleanStr.split(/[\/\-]/);
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1; 
+      const year = parseInt(parts[2], 10);
+      
+      // Basic validation
+      if (day > 31 || month > 11) return null;
+
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+  } catch (e) {
+    console.error('Date parse error', e);
+  }
+  return null;
+};
+
 export default function AdvocateReportPage() {
   const [advCode, setAdvCode] = useState('');
   const [year, setYear] = useState(new Date().getFullYear().toString());
@@ -63,6 +96,9 @@ export default function AdvocateReportPage() {
         : null;
 
       if (!data || !data.advreport) throw new Error('No report found');
+      
+      console.log('Report Data Sample:', data.advreport.caseDetails[0]); // Debug log
+
       setReport(data.advreport as AdvReport);
       toast.success('Report loaded');
     } catch (e: any) {
@@ -111,12 +147,33 @@ export default function AdvocateReportPage() {
           : (advCase.srNumber ? `Not Numbered - ${advCase.srNumber}` : 'Not Numbered - Auto');
 
         // Normalize data for insert/update
+        const rawCase = advCase as any;
+        
+        // Try to find date fields using robust parser
+        const possibleDate = rawCase.dt_reg || rawCase.reg_date || rawCase.date_filed || rawCase.filing_date || rawCase.dt_filing;
+        const filingDate = parseIndianDate(possibleDate);
+        
+        // Robust field extraction with fallbacks
+        const petName = advCase.petName || rawCase.pname || rawCase.pet_name || rawCase.petitioner_name || rawCase.petitioner;
+        const resName = advCase.resName || rawCase.rname || rawCase.res_name || rawCase.respondent_name || rawCase.respondent;
+        const statusStr = (advCase.status || rawCase.case_status || rawCase.status || '').toUpperCase();
+        
+        // Extract category from case number if possible
+        let category = null;
+        if (isNumbered) {
+          const match = normalizedCaseNumber.match(/^([A-Z]+)/i);
+          if (match) category = match[1].toUpperCase();
+        }
+
         const caseData: Partial<Case> = {
           case_number: normalizedCaseNumber,
-          sr_number: advCase.srNumber || null,
-          primary_petitioner: advCase.petName || null,
-          primary_respondent: advCase.resName || null,
-          status: advCase.status === 'DISPOSED' ? 'disposed' : advCase.status === 'PENDING' ? 'pending' : 'filed',
+          sr_number: advCase.srNumber || rawCase.sr_no || rawCase.sr_number || null,
+          primary_petitioner: petName || null,
+          primary_respondent: resName || null,
+          status: ['DISPOSED', 'DISMISSED', 'ALLOWED', 'GRANTED'].includes(statusStr) ? 'disposed' : 'pending',
+          filing_date: filingDate,
+          registration_date: filingDate, // Assuming reg date is same if found
+          category: category,
           created_by: user.id,
         };
 

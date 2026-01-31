@@ -187,10 +187,66 @@ export default function CaseLookupPage() {
         prayer: result.prayer?.prayer || '',
       };
 
-      const { data, error } = await casesDB.create(caseData, user.id);
-      if (error) throw new Error(error);
+      // Check if case exists
+      const { data: existingCase } = await casesDB.getByCaseNumber(caseData.case_number);
+
+      if (existingCase) {
+        // Compare and Generate Update Report
+        const updates: string[] = [];
+        
+        // Helper to format invalid dates/nulls for display
+        const fmt = (v: any) => v || '(empty)';
+
+        if (existingCase.status !== caseData.status) 
+          updates.push(`Status: ${fmt(existingCase.status)} → ${fmt(caseData.status)}`);
+        
+        if (existingCase.listing_date !== caseData.listing_date) 
+          updates.push(`Listing Date: ${fmt(existingCase.listing_date)} → ${fmt(caseData.listing_date)}`);
+        
+        if (existingCase.jud_name !== caseData.jud_name) 
+          updates.push(`Judge: ${fmt(existingCase.jud_name)} → ${fmt(caseData.jud_name)}`);
+        
+        if (existingCase.purpose !== caseData.purpose) 
+          updates.push(`Purpose: ${fmt(existingCase.purpose)} → ${fmt(caseData.purpose)}`);
+
+        // Check for new Orders
+        const oldOrdersCount = Array.isArray(existingCase.orders) ? existingCase.orders.length : 0;
+        const newOrdersCount = caseData.orders.length;
+        if (newOrdersCount > oldOrdersCount) {
+          updates.push(`New Orders: Found ${newOrdersCount - oldOrdersCount} new order(s)`);
+        }
+
+        // Check for new IAs
+        const oldIACount = Array.isArray(existingCase.ia_details) ? existingCase.ia_details.length : 0;
+        const newIACount = caseData.ia_details.length;
+        if (newIACount > oldIACount) {
+          updates.push(`New IAs: Found ${newIACount - oldIACount} new IA(s)`);
+        }
+
+        // Update the case
+        const { error } = await casesDB.update(existingCase.id, caseData);
+        if (error) throw new Error(error);
+
+        if (updates.length > 0) {
+          toast((t) => (
+            <div>
+              <p className="font-bold">Case Updated Successfully!</p>
+              <ul className="list-disc pl-4 mt-2 text-sm">
+                {updates.map((u, i) => <li key={i}>{u}</li>)}
+              </ul>
+            </div>
+          ), { duration: 6000, icon: '📝' });
+        } else {
+          toast.success('Case updated! No significant changes found.');
+        }
+
+      } else {
+        // Create New Case
+        const { data, error } = await casesDB.create(caseData, user.id);
+        if (error) throw new Error(error);
+        toast.success('New case saved successfully!');
+      }
       
-      toast.success('Case saved successfully!');
       navigate('/cases');
     } catch (error: any) {
       toast.error(error.message || 'Failed to save case');

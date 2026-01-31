@@ -6,11 +6,17 @@ from flask import Blueprint, request, jsonify
 from notification_service import notification_service
 from supabase_client import supabase_client
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
 notifications_bp = Blueprint('notifications', __name__, url_prefix='/api/notifications')
 
+def run_async(func, *args, **kwargs):
+    """Helper to run a function in a background thread"""
+    thread = threading.Thread(target=func, args=args, kwargs=kwargs)
+    thread.daemon = True
+    thread.start()
 
 @notifications_bp.route('/task-assigned', methods=['POST'])
 def notify_task_assigned():
@@ -33,36 +39,45 @@ def notify_task_assigned():
         if not task_id or not assignee_id:
             return jsonify({'error': 'task_id and assignee_id required'}), 400
         
-        # Fetch task details from Supabase
-        task = supabase_client.get_task(task_id)
-        if not task:
-            return jsonify({'error': 'Task not found'}), 404
-        
-        # Fetch assignee details
-        assignee = supabase_client.get_user(assignee_id)
-        if not assignee:
-            return jsonify({'error': 'Assignee not found'}), 404
-        
-        # Fetch case details if task is linked to a case
-        if task.get('case_id'):
-            case = supabase_client.get_case(task['case_id'])
-            if case:
-                task['case_number'] = case.get('case_number', 'N/A')
-                task['hearing_date'] = case.get('listing_date') or case.get('filing_date', 'Not scheduled')
-        
-        # Send notifications
-        results = notification_service.send_task_assignment_notification(
-            task, assignee, assigner_name
-        )
+        # Define the background task function
+        def process_notification(t_id, a_id, a_name):
+            try:
+                # Fetch task details from Supabase
+                task = supabase_client.get_task(t_id)
+                if not task:
+                    logger.error(f"Task {t_id} not found for notification")
+                    return
+                
+                # Fetch assignee details
+                assignee = supabase_client.get_user(a_id)
+                if not assignee:
+                    logger.error(f"Assignee {a_id} not found for notification")
+                    return
+                
+                # Fetch case details if task is linked to a case
+                if task.get('case_id'):
+                    case = supabase_client.get_case(task['case_id'])
+                    if case:
+                        task['case_number'] = case.get('case_number', 'N/A')
+                        task['hearing_date'] = case.get('listing_date') or case.get('filing_date', 'Not scheduled')
+                
+                # Send notifications
+                notification_service.send_task_assignment_notification(task, assignee, a_name)
+                logger.info(f"Async notification sent for task {t_id}")
+            except Exception as e:
+                logger.error(f"Async notification failed: {e}")
+
+        # Start background task
+        run_async(process_notification, task_id, assignee_id, assigner_name)
         
         return jsonify({
-            'success': True,
-            'results': results,
+            'success': True, 
+            'message': 'Notification queued',
             'task_id': task_id
         }), 200
     
     except Exception as e:
-        logger.error(f"Task assignment notification failed: {e}")
+        logger.error(f"Task assignment notification request failed: {e}")
         return jsonify({'error': str(e)}), 500
 
 

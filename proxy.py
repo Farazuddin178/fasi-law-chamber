@@ -96,6 +96,39 @@ def get_adv_report():
     except Exception as e:
         return jsonify({'error': 'Unexpected error', 'details': str(e)}), 500
 
+@app.route('/getDailyCauselist', methods=['GET'])
+def get_daily_causelist():
+    try:
+        advocate_code = request.args.get('advocateCode')
+        list_date = request.args.get('listDate')
+        
+        if not advocate_code:
+            return jsonify({'error': 'Missing parameters: advocateCode required'}), 400
+            
+        # The query parameter on TSHC site might be different, but based on pattern:
+        # It seems they use 'advocateCode' or 'advCode'
+        # Let's try matching the pattern in DailyCauselistPage.tsx
+        
+        url = f'https://csis.tshc.gov.in/getDailyCauselist?advocateCode={advocate_code}'
+        if list_date:
+            url += f'&listDate={list_date}'
+            
+        logging.info(f"Fetching daily causelist from: {url}")
+        
+        response = requests.get(url, timeout=30, verify=False)
+        
+        if response.status_code != 200:
+            # Fallback or different endpoint?
+            # Sometimes endpoint is getCauselist
+            return jsonify({'error': f'External API returned {response.status_code}'}), 502
+            
+        data = response.json()
+        return jsonify(data)
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'External API is slow - please try again'}), 504
+    except Exception as e:
+        return jsonify({'error': 'Unable to fetch daily causelist', 'details': str(e)}), 500
+
 @app.route('/getSittingArrangements', methods=['GET'])
 def get_sitting_arrangements():
     try:

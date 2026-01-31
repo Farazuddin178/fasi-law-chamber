@@ -58,6 +58,22 @@ export const casesDB = {
     }
   },
 
+  // Get case by Case Number
+  async getByCaseNumber(caseNumber: string) {
+    try {
+      const { data, error } = await supabase
+        .from('cases')
+        .select('*')
+        .eq('case_number', caseNumber.trim())
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      return { data: data || null, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    }
+  },
+
   // Get case by FLC Number
   async getByFlcNumber(flcNumber: string) {
     try {
