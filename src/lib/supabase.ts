@@ -212,6 +212,6 @@ export interface Notification {
   related_id?: string | null;
   related_type?: string | null;
   metadata?: any;
+  data?: any;
   created_at: string;
 }
-  data?: any;
