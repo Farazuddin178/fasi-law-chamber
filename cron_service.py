@@ -75,7 +75,7 @@ class CronJobService:
         try:
             logger.info("Running daily hearing reminder job...")
             
-            # Get all hearings scheduled for tomorrow
+            # Get all hearings (cases listed) for tomorrow
             tomorrow_hearings = supabase_client.get_tomorrow_hearings()
             
             if not tomorrow_hearings:
@@ -84,39 +84,40 @@ class CronJobService:
             
             logger.info(f"Found {len(tomorrow_hearings)} hearings tomorrow")
             
-            # Process each hearing
-            for hearing in tomorrow_hearings:
+            # Process each case
+            for case in tomorrow_hearings:
                 try:
-                    case_id = hearing.get('case_id')
-                    if not case_id:
-                        logger.warning(f"Hearing {hearing.get('id')} has no case_id")
-                        continue
+                    case_id = case.get('id')
+                    case_number = case.get('case_number', 'Unknown')
                     
-                    # Get case details
-                    case = supabase_client.get_case(case_id)
-                    if not case:
-                        logger.warning(f"Case {case_id} not found")
-                        continue
-                    
-                    # Add hearing details to case data
-                    case['hearing_date'] = hearing.get('hearing_date')
-                    case['court'] = hearing.get('hearing_court', 'Not specified')
-                    case['judge_name'] = hearing.get('judge_name', 'Not specified')
+                    # Prepare data for notification
+                    case['hearing_date'] = case.get('listing_date')
+                    # Ensure judge/court fields are present if available in case record
                     
                     # Get users assigned to this case
                     assignees = supabase_client.get_case_assignees(case_id)
                     
                     if not assignees:
-                        logger.warning(f"No assignees found for case {case_id}")
+                        logger.warning(f"No assignees found for case {case_number}")
                         continue
                     
-                    # Send reminders
+                    # 1. Send External Reminders (Email/WhatsApp)
                     results = notification_service.send_hearing_reminder(case, assignees)
                     
-                    logger.info(f"Sent hearing reminders for case {case.get('case_number')}: {len(results)} notifications")
+                    # 2. Send In-App Reminders (Supabase)
+                    for user in assignees:
+                         supabase_client.create_notification(
+                             user['id'],
+                             f"⚖️ Hearing Reminder: {case_number}",
+                             f"Case {case_number} is listed for tomorrow ({case.get('listing_date')}). Please prepare.",
+                             'task',
+                             'high'
+                         )
+                    
+                    logger.info(f"Sent hearing reminders for case {case_number}: {len(results)} notifications")
                     
                 except Exception as e:
-                    logger.error(f"Failed to process hearing {hearing.get('id')}: {e}")
+                    logger.error(f"Failed to process hearing for case {case.get('id')}: {e}")
                     continue
             
         except Exception as e:

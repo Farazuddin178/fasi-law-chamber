@@ -119,7 +119,19 @@ def notify_hearing_reminder():
         # Optimized: Run in background thread to prevent timeout
         def send_reminders_async(case_data, assignees_list):
             try:
+                # 1. External
                 notification_service.send_hearing_reminder(case_data, assignees_list)
+                
+                # 2. In-App
+                for user in assignees_list:
+                    supabase_client.create_notification(
+                        user['id'],
+                        f"⚖️ Hearing Reminder: {case_data.get('case_number')}",
+                        f"Reminder: Case {case_data.get('case_number')} is scheduled for hearing on {case_data.get('listing_date') or case_data.get('hearing_date')}.",
+                        'task',
+                        'high'
+                    )
+
                 logger.info("Background hearing reminders completed")
             except Exception as e:
                 logger.error(f"Background hearing reminder failed: {e}")

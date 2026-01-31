@@ -4,6 +4,7 @@ import { Plus, Filter, X, MessageCircle, Send, Edit, Trash, CheckCircle, Clock, 
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationHelpers } from '@/lib/database';
+import { notificationManager } from '@/lib/notificationManager';
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -203,15 +204,23 @@ export default function TasksPage() {
             
             // Send WhatsApp & Email notifications via backend
             try {
+              // 1. Send External (WhatsApp + Email)
               await notificationHelpers.notifyTaskAssigned(
                 data.id,
                 cleanedData.assigned_to,
                 user?.full_name || 'Admin'
               );
-              console.log('External notifications sent successfully');
+
+              // 2. Send In-App Notification (Database)
+              await notificationManager.notifyTaskAssignment(
+                formData.title,
+                cleanedData.assigned_to,
+                user?.full_name || 'Admin'
+              );
+              
+              console.log('All notifications (External & In-App) sent successfully');
             } catch (notifError) {
-              console.error('Failed to send external notifications:', notifError);
-              // Don't fail the task creation if notifications fail
+              console.error('Failed to send notifications:', notifError);
             }
           }
         }

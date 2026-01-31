@@ -159,9 +159,16 @@ export default function GitHubIntegrationPage() {
         // Remove id to let database generate new ones
         const { id, ...caseWithoutId } = caseData;
         
+        // Ensure created_by is valid (use current admin if not present or invalid)
+        const payload = {
+            ...caseWithoutId,
+            created_by: user?.id || caseWithoutId.created_by,
+            updated_at: new Date().toISOString() 
+        };
+
         const { error } = await supabase
           .from('cases')
-          .insert(caseWithoutId);
+          .insert(payload);
 
         if (!error) imported++;
       }

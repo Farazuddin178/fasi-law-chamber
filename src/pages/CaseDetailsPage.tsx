@@ -298,6 +298,8 @@ Generated: ${new Date().toLocaleString()}
     try {
       const payload: any = {};
       payload[field] = newArray;
+      // Add changed_by for audit trigger
+      payload.changed_by = user?.id; // Assuming user is available from useAuth
       const { error } = await supabase.from('cases').update(payload).eq('id', id);
       if (error) throw error;
       toast.success('Case updated');

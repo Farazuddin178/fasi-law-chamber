@@ -172,8 +172,55 @@ export default function AdvocateReportPage() {
           primary_respondent: resName || null,
           status: ['DISPOSED', 'DISMISSED', 'ALLOWED', 'GRANTED'].includes(statusStr) ? 'disposed' : 'pending',
           filing_date: filingDate,
-          registration_date: filingDate, // Assuming reg date is same if found
+          registration_date: filingDate,
+          listing_date: parseIndianDate(rawCase.listingdate || rawCase.date_listing || rawCase.next_hearing_date),
+          disp_date: parseIndianDate(rawCase.disposaldate || rawCase.date_disposal),
+          disp_type: rawCase.disposaltype || rawCase.disposal_nature || null,
+          purpose: rawCase.purpose || rawCase.stage_name || null,
+          jud_name: rawCase.judges || rawCase.honourable_judges || null,
           category: category,
+          
+          ia_details: Array.isArray(rawCase.ia) ? rawCase.ia.map((ia: any) => ({
+             number: ia.iaNumber || ia.iano || '',
+             filing_date: parseIndianDate(ia.filingDate || ia.date_filing) || '',
+             advocate_name: ia.advName || ia.advocate || '',
+             paper_type: ia.miscPaperType || ia.type || '',
+             status: ia.status || '',
+             prayer: ia.prayer || '',
+             order_date: parseIndianDate(ia.orderDate || ia.date_order) || '',
+             order: ia.order || ''
+          })) : [],
+
+          connected_matters: Array.isArray(rawCase.connected) ? rawCase.connected.map((c: any) => {
+             if (typeof c === 'string') return { case_number: c };
+             return { case_number: c.caseNumber || c.mainno || c };
+          }) : [],
+
+          orders: Array.isArray(rawCase.orderdetails) ? rawCase.orderdetails.map((ord: any) => ({
+            order_on: ord.orderOn || '',
+            judge_name: ord.judge || '',
+            date: parseIndianDate(ord.dateOfOrders) || '',
+            type: ord.orderType || '',
+            details: ord.orderDetails || '',
+            file: ord.orderDetails ? `https://csis.tshc.gov.in/hcorders/${ord.orderDetails}` : ''
+          })) : [],
+
+          usr_details: Array.isArray(rawCase.usr) ? rawCase.usr.map((usr: any) => ({
+            number: usr.usrNumber || '',
+            advocate_name: usr.advName || '',
+            usr_type: usr.usrType || '',
+            filing_date: parseIndianDate(usr.usrDate) || '',
+            remarks: usr.remarks || ''
+          })) : [],
+
+          lower_court_details: Array.isArray(rawCase.lowerCourt) ? rawCase.lowerCourt.map((lc: any) => ({
+            court_name: lc.courtName || lc.court || '',
+            district: lc.district || '',
+            case_no: lc.caseNumber || lc.caseNo || '',
+            judge: lc.judgeName || lc.judge || '',
+            judgement_date: parseIndianDate(lc.judgementDate || lc.dateOfJudgement) || ''
+          })) : [],
+
           created_by: user.id,
         };
 
@@ -226,7 +273,8 @@ export default function AdvocateReportPage() {
             .update({
               ...caseData,
               updated_at: new Date().toISOString(),
-            })
+              changed_by: user.id, // Pass user ID for audit triggers
+            } as any)
             .eq('id', existingCase.id);
 
           if (updateError) {

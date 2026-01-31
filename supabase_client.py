@@ -94,14 +94,35 @@ class SupabaseClient:
             logger.error(f"Failed to fetch active users: {e}")
             return []
     
+    def create_notification(self, user_id: str, title: str, message: str, type_val: str, priority: str = 'medium') -> bool:
+        """Create in-app notification"""
+        if not self.client:
+            return False
+        try:
+            data = {
+                'user_id': user_id,
+                'title': title,
+                'message': message,
+                'type': type_val,
+                'priority': priority,
+                'is_read': False,
+                # 'created_at' is handled by default or we can pass 'now()'
+            }
+            self.client.table('notifications').insert(data).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create notification: {e}")
+            return False
+
     def get_tomorrow_hearings(self) -> List[Dict]:
-        """Get all cases with hearings tomorrow"""
+        """Get cases listed for tomorrow"""
         if not self.client:
             return []
         from datetime import date, timedelta
         try:
             tomorrow = (date.today() + timedelta(days=1)).isoformat()
-            response = self.client.table('hearings').select('*').eq('hearing_date', tomorrow).execute()
+            # Use 'cases' table and 'listing_date' column
+            response = self.client.table('cases').select('*').eq('listing_date', tomorrow).execute()
             return response.data if response.data else []
         except Exception as e:
             logger.error(f"Failed to fetch tomorrow's hearings: {e}")

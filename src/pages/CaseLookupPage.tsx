@@ -23,12 +23,14 @@ export default function CaseLookupPage() {
     if (!dateStr || dateStr === '-' || dateStr === 'null') return null;
     try {
       // Check if already in YYYY-MM-DD format
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+      if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr.split('T')[0];
       
-      // Convert DD/MM/YYYY to YYYY-MM-DD
-      const parts = dateStr.split('/');
+      // Convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD
+      const parts = dateStr.split(/[\/\-]/);
       if (parts.length === 3) {
         const [day, month, year] = parts;
+        // Basic validation
+        if (parseInt(day) > 31 || parseInt(month) > 12) return null;
         return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
       }
       return null;
@@ -258,7 +260,7 @@ export default function CaseLookupPage() {
         }
 
         // Update the case
-        const { error } = await casesDB.update(existingCase.id, caseData);
+        const { error } = await casesDB.update(existingCase.id, caseData, user.id);
         if (error) throw new Error(error);
 
         if (updates.length > 0) {

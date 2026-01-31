@@ -306,7 +306,11 @@ export default function CaseFormPage() {
         // Update existing case
         const { error } = await supabase
           .from('cases')
-          .update(caseData)
+          .update({
+            ...caseData,
+            updated_at: new Date().toISOString(),
+            changed_by: user?.id
+          })
           .eq('id', id);
 
         if (error) throw error;

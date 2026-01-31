@@ -114,14 +114,23 @@ export const casesDB = {
   },
 
   // Update case
-  async update(id: string, caseData: Partial<Case>) {
+  async update(id: string, caseData: Partial<Case>, userId?: string) {
     try {
+      const payload: any = {
+        ...caseData,
+        updated_at: new Date().toISOString(),
+      };
+      
+      // If userId is provided, try to pass it effectively for audit triggers
+      // Some systems use a 'changed_by' or 'last_modified_by' column on the main table
+      // to pass context to the trigger that writes to audit_logs.
+      if (userId) {
+        payload.changed_by = userId;
+      }
+
       const { data, error } = await supabase
         .from('cases')
-        .update({
-          ...caseData,
-          updated_at: new Date().toISOString(),
-        })
+        .update(payload)
         .eq('id', id)
         .select()
         .single();
