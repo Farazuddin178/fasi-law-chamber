@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase, Case } from '@/lib/supabase';
+import { auditLogsDB } from '@/lib/database';
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -313,6 +314,22 @@ export default function CaseFormPage() {
           .eq('id', id);
 
         if (error) throw error;
+        
+        // Create audit log for case update (ensures changed_by is populated)
+        if (user?.id) {
+          try {
+            await auditLogsDB.create(
+              id,
+              'case_updated',
+              'Previous data',
+              'Case updated from form',
+              user.id
+            );
+          } catch (auditError: any) {
+            console.error('Audit log creation failed:', auditError);
+          }
+        }
+        
         toast.success('Case updated successfully');
         navigate(`/cases/${id}`);
       } else {
@@ -327,6 +344,22 @@ export default function CaseFormPage() {
           .single();
 
         if (error) throw error;
+        
+        // Create audit log for new case (ensures changed_by is populated)
+        if (data?.id && user?.id) {
+          try {
+            await auditLogsDB.create(
+              data.id,
+              'case_added',
+              '',
+              'Case created from form',
+              user.id
+            );
+          } catch (auditError: any) {
+            console.error('Audit log creation failed:', auditError);
+          }
+        }
+        
         toast.success('Case created successfully');
         navigate(`/cases/${data.id}`);
       }

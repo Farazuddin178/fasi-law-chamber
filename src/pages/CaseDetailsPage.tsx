@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase, Case } from '@/lib/supabase';
+import { auditLogsDB } from '@/lib/database';
 import { ArrowLeft, Download, Edit, Trash, Plus, User, Clock, FileText, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -187,6 +188,21 @@ export default function CaseDetailsPage() {
 
       if (error) throw error;
       
+      // Create audit log for submission status update (ensures changed_by is populated)
+      if (id && user?.id) {
+        try {
+          await auditLogsDB.create(
+            id,
+            'submission_status_updated',
+            'Previous status',
+            `Submission marked as ${status}`,
+            user.id
+          );
+        } catch (auditError: any) {
+          console.error('Audit log creation failed:', auditError);
+        }
+      }
+      
       toast.success(`Submission marked as ${status.replace('_', ' ')}`);
       loadSubmissions();
     } catch (error: any) {
@@ -196,7 +212,7 @@ export default function CaseDetailsPage() {
 
   const requestChanges = async (submissionId: string) => {
     const changes = prompt('What changes are needed?');
-    if (!changes || !user) return;
+    if (!changes || !user?.id) return;
 
     try {
       const { error } = await supabase
@@ -210,6 +226,21 @@ export default function CaseDetailsPage() {
         .eq('id', submissionId);
 
       if (error) throw error;
+      
+      // Create audit log for changes requested (ensures changed_by is populated)
+      if (id && user?.id) {
+        try {
+          await auditLogsDB.create(
+            id,
+            'changes_requested',
+            'Previous data',
+            `Changes requested: ${changes}`,
+            user.id
+          );
+        } catch (auditError: any) {
+          console.error('Audit log creation failed:', auditError);
+        }
+      }
       
       toast.success('Changes requested successfully');
       loadSubmissions();
@@ -294,12 +325,26 @@ Generated: ${new Date().toLocaleString()}
 
   // Helper to update array fields for the case
   const updateCaseArrayField = async (field: string, newArray: any[]) => {
-    if (!id) return;
+    if (!id || !user?.id) return;
     try {
       const payload: any = {};
       payload[field] = newArray;
       const { error } = await supabase.from('cases').update(payload).eq('id', id);
       if (error) throw error;
+      
+      // Create audit log for case update (ensures changed_by is populated)
+      try {
+        await auditLogsDB.create(
+          id,
+          field,
+          'Previous data',
+          `${field} updated`,
+          user.id
+        );
+      } catch (auditError: any) {
+        console.error('Audit log creation failed:', auditError);
+      }
+      
       toast.success('Case updated');
       loadCase();
     } catch (error: any) {
