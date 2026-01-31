@@ -47,30 +47,36 @@ export default function AnalyticsPage() {
     { name: 'Filed', value: filteredCases.filter(c => c.status === 'filed').length, color: '#3b82f6' },
     { name: 'Disposed', value: filteredCases.filter(c => c.status === 'disposed').length, color: '#10b981' },
     { name: 'Closed', value: filteredCases.filter(c => c.status === 'closed').length, color: '#6b7280' },
-  ];
+  ].filter(item => item.value > 0); // Only include statuses that have cases
 
   // Cases by year
   const casesByYear: { [key: string]: { pending: number; filed: number; disposed: number; closed: number } } = {};
   filteredCases.forEach(c => {
-    if (c.filing_date) {
+    if (c.filing_date && c.status) {
       const year = new Date(c.filing_date).getFullYear().toString();
       if (!casesByYear[year]) {
         casesByYear[year] = { pending: 0, filed: 0, disposed: 0, closed: 0 };
       }
-      casesByYear[year][c.status]++;
+      // Only count if status is one of the expected values
+      if (['pending', 'filed', 'disposed', 'closed'].includes(c.status)) {
+        casesByYear[year][c.status]++;
+      }
     }
   });
 
   const yearlyData = Object.keys(casesByYear)
     .sort()
-    .map(year => ({
-      year,
-      pending: casesByYear[year].pending,
-      filed: casesByYear[year].filed,
-      disposed: casesByYear[year].disposed,
-      closed: casesByYear[year].closed,
-      total: casesByYear[year].pending + casesByYear[year].filed + casesByYear[year].disposed + casesByYear[year].closed,
-    }));
+    .map(year => {
+      const yearData = casesByYear[year];
+      return {
+        year,
+        pending: yearData.pending || 0,
+        filed: yearData.filed || 0,
+        disposed: yearData.disposed || 0,
+        closed: yearData.closed || 0,
+        total: (yearData.pending || 0) + (yearData.filed || 0) + (yearData.disposed || 0) + (yearData.closed || 0),
+      };
+    });
 
   // Cases by month (current year)
   const currentYear = new Date().getFullYear();
@@ -78,10 +84,11 @@ export default function AnalyticsPage() {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   months.forEach(month => casesByMonth[month] = 0);
 
+  const targetYear = yearFilter === 'all' ? currentYear : parseInt(yearFilter);
   filteredCases.forEach(c => {
     if (c.filing_date) {
       const date = new Date(c.filing_date);
-      if (date.getFullYear() === currentYear || yearFilter === currentYear.toString()) {
+      if (date.getFullYear() === targetYear) {
         const month = months[date.getMonth()];
         casesByMonth[month]++;
       }
@@ -98,7 +105,7 @@ export default function AnalyticsPage() {
   const categoryData = categories.map(cat => ({
     name: cat || 'Uncategorized',
     value: filteredCases.filter(c => c.category === cat).length,
-  }));
+  })).filter(item => item.value > 0); // Only include categories with cases
 
   // Statistics
   const stats = [
