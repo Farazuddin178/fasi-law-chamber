@@ -12,6 +12,7 @@ interface NotificationPayload {
   type: 'task' | 'announcement' | 'sitting_arrangement' | 'general';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   userId?: string; // specific user or undefined for all users
+  relatedId?: string; // ID of related entity (task, case, etc.)
   metadata?: any;
 }
 
@@ -57,6 +58,7 @@ class NotificationManager {
       message: payload.message,
       type: payload.type,
       priority: payload.priority,
+      related_id: payload.relatedId || null,
       metadata: payload.metadata,
       is_read: false,
       read_at: null,
@@ -93,6 +95,7 @@ class NotificationManager {
       message: payload.message,
       type: payload.type,
       priority: payload.priority,
+      related_id: payload.relatedId || null,
       metadata: payload.metadata,
       is_read: false,
       read_at: null,

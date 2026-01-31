@@ -199,3 +199,17 @@ export interface CaseEventRecord {
   document_url?: string | null;
   created_at: string;
 }
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: 'task' | 'announcement' | 'sitting_arrangement' | 'general';
+  title: string;
+  message: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  is_read: boolean;
+  read_at?: string | null;
+  related_id?: string | null;
+  metadata?: any;
+  created_at: string;
+}
