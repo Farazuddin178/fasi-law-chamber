@@ -209,7 +209,7 @@ export default function AdvocateReportPage() {
             const column = isNumbered ? 'case_number' : 'sr_number';
             const result = await supabase
               .from('cases')
-              .select('id')
+              .select('*')
               .eq(column, uniqueValue)
               .limit(1)
               .maybeSingle();
@@ -259,11 +259,50 @@ export default function AdvocateReportPage() {
           }
 
           if (existingCase?.id) {
-            // Update existing case
+            // ENHANCED: Merge logic - only update empty fields or fields that have changed
+            const mergedCaseData: Partial<Case> = { ...caseData };
+            const changes: Array<{ field: string; oldValue: any; newValue: any }> = [];
+
+            // For each field in the new data, only keep it if:
+            // 1. The old field is empty/null/undefined, OR
+            // 2. The new field is different and not empty
+            const fieldsToMerge = [
+              'sr_number',
+              'cnr',
+              'primary_petitioner',
+              'primary_respondent',
+              'petitioner_adv',
+              'respondent_adv',
+              'status',
+              'filing_date',
+              'registration_date',
+              'listing_date',
+              'category',
+              'district',
+              'purpose',
+              'jud_name',
+            ];
+
+            for (const field of fieldsToMerge) {
+              const oldValue = (existingCase as any)[field];
+              const newValue = (caseData as any)[field];
+
+              // Only update if new value is not empty AND (old is empty OR values differ)
+              if (newValue && (oldValue === null || oldValue === undefined || oldValue === '' || oldValue !== newValue)) {
+                changes.push({
+                  field,
+                  oldValue: oldValue || '(empty)',
+                  newValue: newValue,
+                });
+                mergedCaseData[field as keyof Case] = newValue;
+              }
+            }
+
+            // Update existing case with merged data
             const { data: updatedCase, error: updateError } = await supabase
               .from('cases')
               .update({
-                ...caseData,
+                ...mergedCaseData,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', existingCase.id)
@@ -276,16 +315,24 @@ export default function AdvocateReportPage() {
               failedCases.push(`${normalizedCaseNumber} (update error)`);
             } else {
               updateCount++;
-              
-              // FIX: Create audit log for case update with proper changed_by
-              if (updatedCase?.id) {
-                await auditLogsDB.create(
-                  updatedCase.id,
-                  'case_updated',
-                  'Existing case',
-                  `Case updated from Advocate Report for ${report.advName}`,
-                  user.id // CRITICAL: Pass authenticated user ID for changed_by field
-                );
+
+              // Create audit logs for each changed field (ensures changed_by is populated)
+              if (updatedCase?.id && changes.length > 0) {
+                try {
+                  for (const change of changes) {
+                    await auditLogsDB.create(
+                      updatedCase.id,
+                      change.field,
+                      String(change.oldValue),
+                      String(change.newValue),
+                      user.id // CRITICAL: Pass authenticated user ID for changed_by field
+                    );
+                  }
+                  console.log(`Updated case ${normalizedCaseNumber} with ${changes.length} field(s)`);
+                } catch (auditError: any) {
+                  // Log audit error but don't fail the update
+                  console.error(`Audit log creation failed for case ${updatedCase.id}:`, auditError);
+                }
               }
             }
           } else {

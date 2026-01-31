@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { casesDB } from '@/lib/database';
+import { casesDB, auditLogsDB } from '@/lib/database';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -110,7 +110,7 @@ export default function CaseLookupPage() {
       toast.error('No case data to save');
       return;
     }
-    if (!user) {
+    if (!user?.id) {
       toast.error('Please login to save cases');
       return;
     }
@@ -266,6 +266,17 @@ export default function CaseLookupPage() {
           throw new Error(error);
         }
 
+        // Create audit logs for changed fields (ensures changed_by is populated)
+        try {
+          await auditLogsDB.trackCaseChanges(
+            existingCase,
+            { ...caseData, id: existingCase.id },
+            user.id
+          );
+        } catch (auditError: any) {
+          console.error('Audit log creation failed:', auditError);
+        }
+
         if (updates.length > 0) {
           toast((t) => (
             <div>
@@ -286,6 +297,21 @@ export default function CaseLookupPage() {
         if (error) {
           console.error('Create error:', error);
           throw new Error(error);
+        }
+
+        // Create audit log entry for new case (ensures changed_by is populated)
+        if (data?.id) {
+          try {
+            await auditLogsDB.create(
+              data.id,
+              'case_added',
+              '',
+              'Case added from Case Lookup',
+              user.id
+            );
+          } catch (auditError: any) {
+            console.error('Audit log creation failed:', auditError);
+          }
         }
         toast.success('New case saved successfully!');
       }
