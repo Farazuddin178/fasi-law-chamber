@@ -9,6 +9,6 @@ lxml==5.1.0
 
 # Notification system dependencies
 twilio==8.10.0
-supabase==2.3.0
+supabase==2.11.1
 apscheduler==3.10.4
 python-dotenv==1.0.0
