@@ -24,6 +24,18 @@ export default function AnalyticsPage() {
 
       if (error) throw error;
       setCases(data || []);
+      
+      // Debug: Log unique status values
+      const uniqueStatuses = [...new Set((data || []).map(c => c.status))];
+      console.log('Unique status values in database:', uniqueStatuses);
+      console.log('Total cases:', data?.length);
+      console.log('Status counts:', {
+        pending: data?.filter(c => c.status === 'pending').length,
+        filed: data?.filter(c => c.status === 'filed').length,
+        disposed: data?.filter(c => c.status === 'disposed').length,
+        closed: data?.filter(c => c.status === 'closed').length,
+        null: data?.filter(c => !c.status).length,
+      });
     } catch (error: any) {
       toast.error(error.message || 'Failed to load cases');
     } finally {
