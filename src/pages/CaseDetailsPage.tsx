@@ -448,6 +448,10 @@ Generated: ${new Date().toLocaleString()}
                   <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Listing Date</span>
                   <span className="text-lg font-semibold text-gray-700 mt-1">{caseData.listing_date ? new Date(caseData.listing_date).toLocaleDateString() : 'N/A'}</span>
                 </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">FLC Number</span>
+                  <span className="text-lg font-semibold text-gray-700 mt-1">{(caseData as any).flc_number || 'N/A'}</span>
+                </div>
               </div>
               <div className="space-y-4">
                 <div className="flex flex-col">
@@ -480,6 +484,132 @@ Generated: ${new Date().toLocaleString()}
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* OFFICE & CLIENT MANAGEMENT */}
+        <div className="bg-white rounded-xl shadow-lg border-2 border-gray-200 overflow-hidden">
+          <div className="bg-gray-100 px-6 py-4 border-b-2 border-gray-200">
+            <h3 className="text-2xl font-bold text-gray-800">🏢 Office & Client Details</h3>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
+            
+            {/* Client Section */}
+            <div className="space-y-4">
+              <h4 className="font-bold text-lg text-blue-800 border-b pb-1">Client Information</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Client Name</span>
+                  <span className="font-medium">{(caseData as any).client_name || '-'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Subject</span>
+                  <span className="font-medium">{(caseData as any).subject || '-'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Referred By</span>
+                  <span className="font-medium">{(caseData as any).referred_by || '-'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Ref. Case No</span>
+                  <span className="font-medium">{(caseData as any).referred_by_case_number || '-'}</span>
+                </div>
+                <div className="col-span-2 flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Memo</span>
+                  <span className="font-medium bg-gray-50 p-2 rounded">{(caseData as any).memo || '-'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Workflow Section */}
+            <div className="space-y-4">
+              <h4 className="font-bold text-lg text-blue-800 border-b pb-1">Court Workflow</h4>
+               <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Petition Type</span>
+                  <span className="font-medium">{(caseData as any).petition_type || '-'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">SLR Number</span>
+                  <span className="font-medium">{(caseData as any).slr_number || '-'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Hearing Court</span>
+                  <span className="font-medium">{(caseData as any).hearing_court || '-'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Assigned To</span>
+                  <span className="font-medium">{(caseData as any).assigned_to || '-'}</span>
+                </div>
+                 <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Temp Filing No</span>
+                  <span className="font-medium">{(caseData as any).temporary_filing_number || '-'}</span>
+                </div>
+                 <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Perm Filing No</span>
+                  <span className="font-medium">{(caseData as any).permanent_filing_number || '-'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Hearing & Motion */}
+            <div className="space-y-4">
+              <h4 className="font-bold text-lg text-blue-800 border-b pb-1">Hearing & Motion</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Next Hearing</span>
+                  <span className="font-medium">{(caseData as any).next_hearing_date ? new Date((caseData as any).next_hearing_date).toLocaleDateString() : '-'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Mention Date</span>
+                  <span className="font-medium">{(caseData as any).mention_date ? new Date((caseData as any).mention_date).toLocaleDateString() : '-'}</span>
+                </div>
+                 <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Motion Type</span>
+                  <span className="font-medium">{(caseData as any).motion_type || '-'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Is Adjourned</span>
+                  <span className={`font-medium ${(caseData as any).is_adjourned ? 'text-red-600' : ''}`}>{(caseData as any).is_adjourned ? 'Yes' : 'No'}</span>
+                </div>
+                <div className="col-span-2 flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Motion Reason</span>
+                  <span className="font-medium">{(caseData as any).motion_reason || '-'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Post Listing & Notes */}
+            <div className="space-y-4">
+              <h4 className="font-bold text-lg text-blue-800 border-b pb-1">Post Listing & Notes</h4>
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Post List Date</span>
+                  <span className="font-medium">{(caseData as any).post_listing_date ? new Date((caseData as any).post_listing_date).toLocaleDateString() : '-'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Posting Clerk</span>
+                  <span className="font-medium">{(caseData as any).posting_clerk_name || '-'}</span>
+                </div>
+                 <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Courtship Status</span>
+                  <span className="font-medium">{(caseData as any).courtship_submitted ? 'Submitted' : 'Pending'} ({(caseData as any).courtship_submission_type || '-'})</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Ack Received</span>
+                  <span className="font-medium">{(caseData as any).acknowledgment_received ? 'Yes' : 'No'}</span>
+                </div>
+                <div className="col-span-2 flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Doc Requirements</span>
+                  <span className="font-medium">{(caseData as any).document_requirements || '-'}</span>
+                </div>
+                 <div className="col-span-2 flex flex-col">
+                  <span className="text-xs font-semibold text-gray-500 uppercase">Fasi Comments</span>
+                  <span className="font-medium bg-yellow-50 p-2 rounded border border-yellow-100">{(caseData as any).fasi_comments || '-'}</span>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 

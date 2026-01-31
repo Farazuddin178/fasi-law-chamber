@@ -148,7 +148,7 @@ export default function CaseLookupPage() {
         remarks: usr.remarks || ''
       })) : [];
 
-      // Transform orders to match CaseDetailsPage format - ensure it's always an array
+      // Transform orders - ensure it's always an array
       const transformedOrders = Array.isArray(result.orderdetails) ? (result.orderdetails || []).map((ord: any) => ({
         order_on: ord.orderOn || '',
         judge_name: ord.judge || '',
@@ -156,6 +156,32 @@ export default function CaseLookupPage() {
         type: ord.orderType || '',
         details: ord.orderDetails || '',
         file: ord.orderDetails ? `https://csis.tshc.gov.in/hcorders/${ord.orderDetails}` : ''
+      })) : [];
+
+      // Transform Connected Matters
+      const transformedConnected = Array.isArray(result.connected) ? (result.connected || []).map((c: any) => {
+        if (typeof c === 'string') return { case_number: c };
+        return { case_number: c.caseNumber || c.mainno || c };
+      }) : [];
+
+      // Transform Lower Court Details
+      const transformedLowerCourt = Array.isArray(result.lowerCourt) ? (result.lowerCourt || []).map((lc: any) => ({
+        court_name: lc.courtName || lc.court || '',
+        district: lc.district || '',
+        case_no: lc.caseNumber || lc.caseNo || '',
+        judge: lc.judgeName || lc.judge || '',
+        judgement_date: convertDateFormat(lc.judgementDate || lc.dateOfJudgement) || ''
+      })) : [];
+
+      // Transform Vakalath
+      // Note: API might return 'vakalath' or 'vakalathParams'
+      const rawVakalath = result.vakalath || result.vakalathParams || [];
+      const transformedVakalath = Array.isArray(rawVakalath) ? rawVakalath.map((v: any) => ({
+        advocate_code: v.advCode || '',
+        advocate_name: v.advName || '',
+        pr_no: v.prNo || '',
+        remarks: v.remarks || '',
+        file: v.link ? `https://csis.tshc.gov.in/${v.link}` : '' 
       })) : [];
 
       const caseData = {
@@ -184,6 +210,9 @@ export default function CaseLookupPage() {
         ia_details: transformedIADetails,
         usr_details: transformedUSRDetails,
         orders: transformedOrders,
+        connected_matters: transformedConnected,
+        lower_court_details: transformedLowerCourt,
+        vakalath: transformedVakalath,
         prayer: result.prayer?.prayer || '',
       };
 
@@ -208,6 +237,11 @@ export default function CaseLookupPage() {
         
         if (existingCase.purpose !== caseData.purpose) 
           updates.push(`Purpose: ${fmt(existingCase.purpose)} → ${fmt(caseData.purpose)}`);
+
+        // Check for new Connected Matters
+        const oldConnCount = Array.isArray(existingCase.connected_matters) ? existingCase.connected_matters.length : 0;
+        const newConnCount = caseData.connected_matters.length;
+        if (newConnCount > oldConnCount) updates.push(`New Connected Matters: ${newConnCount - oldConnCount} new`);
 
         // Check for new Orders
         const oldOrdersCount = Array.isArray(existingCase.orders) ? existingCase.orders.length : 0;
@@ -341,6 +375,36 @@ export default function CaseLookupPage() {
                   <tr><td className="font-semibold pr-4">Category</td><td>{result.category.category}</td></tr>
                   <tr><td className="font-semibold pr-4">Sub Category</td><td>{result.category.subCategory}</td></tr>
                   <tr><td className="font-semibold pr-4">Sub-Sub Category</td><td>{result.category.subSubCategory}</td></tr>
+                </tbody>
+              </table>
+            </Section>
+          )}
+
+          {/* Connected Matters */}
+          {(result.connected || []).length > 0 && (
+            <Section title={`Connected Matters (${result.connected.length})`}>
+              <ul className="list-disc pl-5">
+                {result.connected.map((c: any, idx: number) => (
+                  <li key={idx}>{(typeof c === 'string' ? c : c.caseNumber || c.mainno || JSON.stringify(c))}</li>
+                ))}
+              </ul>
+            </Section>
+          )}
+          
+          {/* Lower Court */}
+          {Array.isArray(result.lowerCourt) && result.lowerCourt.length > 0 && (
+            <Section title="Lower Court Details">
+               <table className="min-w-full">
+                <thead><tr><th>Court</th><th>Judge</th><th>Case No</th><th>Judgment Date</th></tr></thead>
+                <tbody>
+                  {result.lowerCourt.map((lc:any, idx:number)=> (
+                    <tr key={idx} className="border-t">
+                      <td>{lc.courtName || lc.court}</td>
+                      <td>{lc.judgeName || lc.judge}</td>
+                      <td>{lc.caseNumber || lc.caseNo}</td>
+                      <td>{lc.judgementDate || lc.dateOfJudgement}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </Section>
