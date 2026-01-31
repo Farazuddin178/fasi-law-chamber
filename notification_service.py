@@ -61,7 +61,7 @@ class NotificationService:
         # Check email configuration
         self.email_enabled = bool(SMTP_USER and SMTP_PASSWORD)
         if self.email_enabled:
-            logger.info("Email service configured")
+            logger.info(f"Email service configured. Host: {SMTP_HOST}, Port: {SMTP_PORT}, User: {SMTP_USER}")
         else:
             logger.warning("Email service not configured - set SMTP credentials")
     
@@ -160,12 +160,14 @@ class NotificationService:
             msg.attach(part2)
             
             # Send email
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            logger.info(f"Attempting to connect to SMTP server {SMTP_HOST}:{SMTP_PORT}...")
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+                server.set_debuglevel(1)  # Enable detailed SMTP debug logs
                 server.starttls()
                 server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
             
-            logger.info(f"Email sent to {to_email}")
+            logger.info(f"Email sent successfully to {to_email}")
             return {'success': True}
         except Exception as e:
             error_msg = str(e)
@@ -449,22 +451,34 @@ View in app: {APP_URL}/announcements
         """
         
         results = []
+        logger.info(f"Processing announcement notifications for {len(recipients)} recipients")
+        
         for recipient in recipients:
+            user_name = recipient.get('full_name', 'Unknown')
+            phone = recipient.get('phone')
+            email = recipient.get('email')
+            
             result = {
-                'user': recipient.get('full_name', 'Unknown'),
+                'user': user_name,
                 'whatsapp': {'success': False},
                 'email': {'success': False}
             }
             
-            if recipient.get('phone'):
-                result['whatsapp'] = self.send_whatsapp(recipient['phone'], whatsapp_msg)
+            logger.info(f"Sending announcement to {user_name} (Phone: {phone}, Email: {email})")
+
+            if phone:
+                result['whatsapp'] = self.send_whatsapp(phone, whatsapp_msg)
+            else:
+                logger.info(f"Skipping WhatsApp for {user_name} - no phone number")
             
-            if recipient.get('email'):
+            if email:
                 result['email'] = self.send_email(
-                    recipient['email'],
+                    email,
                     f"Announcement: {title}",
                     email_html
                 )
+            else:
+                logger.info(f"Skipping Email for {user_name} - no email address")
             
             results.append(result)
         

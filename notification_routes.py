@@ -160,15 +160,20 @@ def notify_announcement():
         
         # Determine recipients
         if target_users == 'all':
+            logger.info("Fetching all active users for announcement")
             recipients = supabase_client.get_all_active_users()
         else:
+            logger.info(f"Fetching specific users for announcement: {target_users}")
             recipients = []
             for user_id in target_users:
                 user = supabase_client.get_user(user_id)
                 if user:
                     recipients.append(user)
         
+        logger.info(f"Found {len(recipients)} recipients for announcement")
+        
         if not recipients:
+            logger.warning("No recipients found for announcement - aborting notification")
             return jsonify({'error': 'No recipients found'}), 400
         
         # Send notifications

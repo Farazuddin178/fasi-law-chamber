@@ -78,8 +78,18 @@ class SupabaseClient:
         if not self.client:
             return []
         try:
+            logger.info("Fetching all active users from Supabase...")
             response = self.client.table('users').select('*').eq('is_active', True).execute()
-            return response.data if response.data else []
+            data = response.data if response.data else []
+            
+            # Fallback: If no users have 'is_active=true', fetch ALL users
+            if len(data) == 0:
+                logger.warning("No users found with is_active=True. Fetching ALL users as fallback.")
+                response = self.client.table('users').select('*').execute()
+                data = response.data if response.data else []
+                
+            logger.info(f"Found {len(data)} users for broadcast")
+            return data
         except Exception as e:
             logger.error(f"Failed to fetch active users: {e}")
             return []
