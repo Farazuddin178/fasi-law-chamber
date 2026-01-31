@@ -950,7 +950,11 @@ export const auditLogsDB = {
 // NOTIFICATION HELPER - Backend Integration
 // ============================================================================
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (
+  typeof window !== 'undefined' && window.location.origin.includes('render.com')
+    ? window.location.origin
+    : 'http://localhost:5001'
+);
 
 export const notificationHelpers = {
   // Send task assignment notification
