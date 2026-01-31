@@ -223,6 +223,8 @@ export default function AdvocateReportPage() {
     });
   };
 
+  const caseDetails = report?.caseDetails || [];
+
   return (
     <div className="container mx-auto py-6 space-y-6 max-w-6xl">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -303,7 +305,7 @@ export default function AdvocateReportPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {report.caseDetails.map((c, idx) => {
+                  {caseDetails.map((c, idx) => {
                     const parsed = parseCaseNumber(c.caseNumber);
                     const canOpen = !!parsed;
                     const statusBadge = c.status === 'DISPOSED'
@@ -349,7 +351,7 @@ export default function AdvocateReportPage() {
                       </tr>
                     );
                   })}
-                  {report.caseDetails.length === 0 && (
+                  {caseDetails.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No cases found</td>
                     </tr>

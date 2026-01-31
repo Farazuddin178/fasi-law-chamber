@@ -13,10 +13,7 @@ interface RecentAnnouncementProps {
 export default function RecentAnnouncement24hr({ announcement }: RecentAnnouncementProps) {
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [isExpired, setIsExpired] = useState(false);
-  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('dismissed_announcements');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [isDismissed, setIsDismissed] = useState(false);
 
   const endTime = announcement
     ? new Date(new Date(announcement.created_at).getTime() + 24 * 60 * 60 * 1000).toLocaleString()
@@ -25,12 +22,6 @@ export default function RecentAnnouncement24hr({ announcement }: RecentAnnouncem
   useEffect(() => {
     if (!announcement) {
       setIsExpired(false);
-      return;
-    }
-
-    // Check if announcement is dismissed
-    if (dismissedIds.includes(announcement.id)) {
-      setIsExpired(true);
       return;
     }
 
@@ -60,18 +51,13 @@ export default function RecentAnnouncement24hr({ announcement }: RecentAnnouncem
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [announcement, dismissedIds]);
+  }, [announcement]);
 
   const handleDismiss = () => {
-    if (announcement) {
-      const updated = [...dismissedIds, announcement.id];
-      setDismissedIds(updated);
-      localStorage.setItem('dismissed_announcements', JSON.stringify(updated));
-      setIsExpired(true);
-    }
+    setIsDismissed(true);
   };
 
-  if (!announcement || dismissedIds.includes(announcement.id)) {
+  if (!announcement || isDismissed) {
     return null;
   }
 
