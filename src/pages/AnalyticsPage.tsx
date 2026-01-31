@@ -24,18 +24,6 @@ export default function AnalyticsPage() {
 
       if (error) throw error;
       setCases(data || []);
-      
-      // Debug: Log unique status values
-      const uniqueStatuses = [...new Set((data || []).map(c => c.status))];
-      console.log('Unique status values in database:', uniqueStatuses);
-      console.log('Total cases:', data?.length);
-      console.log('Status counts:', {
-        pending: data?.filter(c => c.status === 'pending').length,
-        filed: data?.filter(c => c.status === 'filed').length,
-        disposed: data?.filter(c => c.status === 'disposed').length,
-        closed: data?.filter(c => c.status === 'closed').length,
-        null: data?.filter(c => !c.status).length,
-      });
     } catch (error: any) {
       toast.error(error.message || 'Failed to load cases');
     } finally {
@@ -53,24 +41,32 @@ export default function AnalyticsPage() {
     return true;
   });
 
-  // Status breakdown
-  const statusData = [
-    { name: 'Pending', value: filteredCases.filter(c => c.status === 'pending').length, color: '#fbbf24' },
-    { name: 'Filed', value: filteredCases.filter(c => c.status === 'filed').length, color: '#3b82f6' },
-    { name: 'Disposed', value: filteredCases.filter(c => c.status === 'disposed').length, color: '#10b981' },
-    { name: 'Closed', value: filteredCases.filter(c => c.status === 'closed').length, color: '#6b7280' },
-  ].filter(item => item.value > 0); // Only include statuses that have cases
+  // Status breakdown - only include statuses that exist in database
+  const uniqueStatuses = [...new Set(filteredCases.map(c => c.status).filter(Boolean))];
+  const statusColors: { [key: string]: string } = {
+    'pending': '#fbbf24',
+    'filed': '#3b82f6',
+    'disposed': '#10b981',
+    'closed': '#6b7280',
+  };
+  const statusData = uniqueStatuses.map(status => ({
+    name: status.charAt(0).toUpperCase() + status.slice(1),
+    value: filteredCases.filter(c => c.status === status).length,
+    color: statusColors[status] || '#6b7280',
+  }));
 
-  // Cases by year
-  const casesByYear: { [key: string]: { pending: number; filed: number; disposed: number; closed: number } } = {};
+  // Cases by year - dynamically handle all status values
+  const casesByYear: { [key: string]: { [status: string]: number } } = {};
   filteredCases.forEach(c => {
     if (c.filing_date && c.status) {
       const year = new Date(c.filing_date).getFullYear().toString();
       if (!casesByYear[year]) {
-        casesByYear[year] = { pending: 0, filed: 0, disposed: 0, closed: 0 };
+        casesByYear[year] = {};
+        uniqueStatuses.forEach(status => {
+          casesByYear[year][status] = 0;
+        });
       }
-      // Only count if status is one of the expected values
-      if (['pending', 'filed', 'disposed', 'closed'].includes(c.status)) {
+      if (casesByYear[year][c.status] !== undefined) {
         casesByYear[year][c.status]++;
       }
     }
@@ -80,14 +76,14 @@ export default function AnalyticsPage() {
     .sort()
     .map(year => {
       const yearData = casesByYear[year];
-      return {
-        year,
-        pending: yearData.pending || 0,
-        filed: yearData.filed || 0,
-        disposed: yearData.disposed || 0,
-        closed: yearData.closed || 0,
-        total: (yearData.pending || 0) + (yearData.filed || 0) + (yearData.disposed || 0) + (yearData.closed || 0),
-      };
+      const result: any = { year };
+      let total = 0;
+      uniqueStatuses.forEach(status => {
+        result[status] = yearData[status] || 0;
+        total += yearData[status] || 0;
+      });
+      result.total = total;
+      return result;
     });
 
   // Cases by month (current year)
@@ -119,40 +115,29 @@ export default function AnalyticsPage() {
     value: filteredCases.filter(c => c.category === cat).length,
   })).filter(item => item.value > 0); // Only include categories with cases
 
-  // Statistics
+  // Statistics - dynamically based on actual statuses
+  const statsConfig: { [key: string]: any } = {
+    'pending': { icon: Clock, textColor: 'text-yellow-600', bgColor: 'bg-yellow-50' },
+    'filed': { icon: TrendingUp, textColor: 'text-indigo-600', bgColor: 'bg-indigo-50' },
+    'disposed': { icon: CheckCircle, textColor: 'text-green-600', bgColor: 'bg-green-50' },
+    'closed': { icon: CheckCircle, textColor: 'text-gray-600', bgColor: 'bg-gray-50' },
+  };
+  
   const stats = [
     {
       title: 'Total Cases',
       value: filteredCases.length,
       icon: FileText,
-      color: 'bg-blue-500',
       textColor: 'text-blue-600',
       bgColor: 'bg-blue-50',
     },
-    {
-      title: 'Pending Cases',
-      value: filteredCases.filter(c => c.status === 'pending').length,
-      icon: Clock,
-      color: 'bg-yellow-500',
-      textColor: 'text-yellow-600',
-      bgColor: 'bg-yellow-50',
-    },
-    {
-      title: 'Filed Cases',
-      value: filteredCases.filter(c => c.status === 'filed').length,
-      icon: TrendingUp,
-      color: 'bg-indigo-500',
-      textColor: 'text-indigo-600',
-      bgColor: 'bg-indigo-50',
-    },
-    {
-      title: 'Disposed Cases',
-      value: filteredCases.filter(c => c.status === 'disposed').length,
-      icon: CheckCircle,
-      color: 'bg-green-500',
-      textColor: 'text-green-600',
-      bgColor: 'bg-green-50',
-    },
+    ...uniqueStatuses.map(status => ({
+      title: `${status.charAt(0).toUpperCase() + status.slice(1)} Cases`,
+      value: filteredCases.filter(c => c.status === status).length,
+      icon: statsConfig[status]?.icon || FileText,
+      textColor: statsConfig[status]?.textColor || 'text-gray-600',
+      bgColor: statsConfig[status]?.bgColor || 'bg-gray-50',
+    })),
   ];
 
   // Get available years
@@ -278,7 +263,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 gap-6">
         {/* Cases by Year */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Cases by Year (Pending vs Filed)</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Cases by Year by Status</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={yearlyData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -286,10 +271,14 @@ export default function AnalyticsPage() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="pending" fill="#fbbf24" name="Pending" />
-              <Bar dataKey="filed" fill="#3b82f6" name="Filed" />
-              <Bar dataKey="disposed" fill="#10b981" name="Disposed" />
-              <Bar dataKey="closed" fill="#6b7280" name="Closed" />
+              {uniqueStatuses.map((status) => (
+                <Bar 
+                  key={status} 
+                  dataKey={status} 
+                  fill={statusColors[status] || '#6b7280'} 
+                  name={status.charAt(0).toUpperCase() + status.slice(1)} 
+                />
+              ))}
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -322,18 +311,11 @@ export default function AnalyticsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Year
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Pending
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Filed
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Disposed
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Closed
-                </th>
+                {uniqueStatuses.map(status => (
+                  <th key={status} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </th>
+                ))}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total
                 </th>
@@ -345,18 +327,11 @@ export default function AnalyticsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {row.year}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {row.pending}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {row.filed}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {row.disposed}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {row.closed}
-                  </td>
+                  {uniqueStatuses.map(status => (
+                    <td key={status} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {row[status] || 0}
+                    </td>
+                  ))}
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                     {row.total}
                   </td>
@@ -364,7 +339,7 @@ export default function AnalyticsPage() {
               ))}
               {yearlyData.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={uniqueStatuses.length + 2} className="px-6 py-4 text-center text-gray-500">
                     No data available
                   </td>
                 </tr>

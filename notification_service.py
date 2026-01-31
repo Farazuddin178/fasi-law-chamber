@@ -80,24 +80,35 @@ class NotificationService:
             return {'success': False, 'error': 'Twilio not configured'}
         
         try:
-            # Ensure number is in WhatsApp format
-            if not to_number.startswith('whatsapp:'):
-                to_number = f'whatsapp:{to_number}'
+            # Clean and format the phone number
+            # Remove any existing whatsapp: prefix
+            clean_number = to_number.replace('whatsapp:', '').strip()
+            
+            # Ensure it starts with +
+            if not clean_number.startswith('+'):
+                # If it's just the number without country code, add +91
+                if len(clean_number) == 10:
+                    clean_number = f'+91{clean_number}'
+                else:
+                    clean_number = f'+{clean_number}'
+            
+            # Add whatsapp: prefix
+            formatted_number = f'whatsapp:{clean_number}'
             
             message_obj = self.twilio_client.messages.create(
                 from_=TWILIO_WHATSAPP_NUMBER,
                 body=message,
-                to=to_number
+                to=formatted_number
             )
             
-            logger.info(f"WhatsApp sent to {to_number}, SID: {message_obj.sid}")
+            logger.info(f"WhatsApp sent to {formatted_number}, SID: {message_obj.sid}")
             return {
                 'success': True,
                 'message_sid': message_obj.sid,
                 'status': message_obj.status
             }
         except Exception as e:
-            logger.error(f"WhatsApp send failed to {to_number}: {e}")
+            logger.error(f"WhatsApp send failed to {formatted_number if 'formatted_number' in locals() else to_number}: {e}")
             return {'success': False, 'error': str(e)}
     
     def send_email(self, to_email: str, subject: str, html_content: str, 
