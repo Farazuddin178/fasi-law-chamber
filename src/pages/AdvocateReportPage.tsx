@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, ExternalLink, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase, Case } from '@/lib/supabase';
+import { auditLogsDB } from '@/lib/database';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface AdvCase {
@@ -126,8 +127,9 @@ export default function AdvocateReportPage() {
       return;
     }
 
+    // CRITICAL: Check user authentication to ensure changed_by is populated
     if (!user?.id) {
-      toast.error('User not authenticated');
+      toast.error('User not authenticated. Please log in to add cases.');
       return;
     }
 
@@ -135,140 +137,210 @@ export default function AdvocateReportPage() {
     let successCount = 0;
     let updateCount = 0;
     let failureCount = 0;
+    const failedCases: string[] = []; // Track which cases failed
 
     try {
       for (const advCase of report.caseDetails) {
-        const isNumbered = !!(advCase.caseNumber && advCase.caseNumber.toLowerCase() !== 'not numbered');
-        const uniqueValue = isNumbered ? advCase.caseNumber : advCase.srNumber;
+        try {
+          const isNumbered = !!(advCase.caseNumber && advCase.caseNumber.toLowerCase() !== 'not numbered');
+          const uniqueValue = isNumbered ? advCase.caseNumber : advCase.srNumber;
 
-        // If table requires case_number, set a stable placeholder for unnumbered
-        const normalizedCaseNumber = isNumbered
-          ? advCase.caseNumber
-          : (advCase.srNumber ? `Not Numbered - ${advCase.srNumber}` : 'Not Numbered - Auto');
+          // If table requires case_number, set a stable placeholder for unnumbered
+          const normalizedCaseNumber = isNumbered
+            ? advCase.caseNumber
+            : (advCase.srNumber ? `Not Numbered - ${advCase.srNumber}` : 'Not Numbered - Auto');
 
-        // Normalize data for insert/update
-        const rawCase = advCase as any;
-        
-        // Extract all possible date fields
-        const filingDate = parseIndianDate(rawCase.filingDate || rawCase.dt_reg || rawCase.reg_date || rawCase.date_filed || rawCase.filing_date || rawCase.dt_filing);
-        const regDate = parseIndianDate(rawCase.registrationDate || rawCase.regDate || rawCase.dt_reg);
-        const listingDate = parseIndianDate(rawCase.listingDate || rawCase.nextHearingDate || rawCase.date_listing);
-        
-        // Robust field extraction with fallbacks
-        const petName = advCase.petName || rawCase.pname || rawCase.pet_name || rawCase.petitioner_name || rawCase.petitioner || '';
-        const resName = advCase.resName || rawCase.rname || rawCase.res_name || rawCase.respondent_name || rawCase.respondent || '';
-        const statusStr = (advCase.status || rawCase.case_status || rawCase.caseStatus || '').toUpperCase();
-        
-        // Extract category from case number if possible
-        let category = null;
-        if (isNumbered) {
-          const match = normalizedCaseNumber.match(/^([A-Z]+)/i);
-          if (match) category = match[1].toUpperCase();
-        }
+          // Normalize data for insert/update
+          const rawCase = advCase as any;
+          
+          // Extract all possible date fields with validation
+          const filingDate = parseIndianDate(rawCase.filingDate || rawCase.dt_reg || rawCase.reg_date || rawCase.date_filed || rawCase.filing_date || rawCase.dt_filing);
+          const regDate = parseIndianDate(rawCase.registrationDate || rawCase.regDate || rawCase.dt_reg);
+          const listingDate = parseIndianDate(rawCase.listingDate || rawCase.nextHearingDate || rawCase.date_listing);
+          
+          // Robust field extraction with fallbacks - ensure non-empty strings
+          const petName = advCase.petName || rawCase.pname || rawCase.pet_name || rawCase.petitioner_name || rawCase.petitioner || '';
+          const resName = advCase.resName || rawCase.rname || rawCase.res_name || rawCase.respondent_name || rawCase.respondent || '';
+          const statusStr = (advCase.status || rawCase.case_status || rawCase.caseStatus || '').toUpperCase();
+          
+          // Validate essential fields before proceeding
+          if (!petName && !resName) {
+            console.warn(`Skipping case ${normalizedCaseNumber} - missing petitioner and respondent names`);
+            failureCount++;
+            failedCases.push(`${normalizedCaseNumber} (missing parties)`);
+            continue;
+          }
 
-        // Extract all available fields from the API response
-        const caseData: Partial<Case> = {
-          case_number: normalizedCaseNumber,
-          sr_number: advCase.srNumber || rawCase.sr_no || rawCase.srNumber || rawCase.sr_number || null,
-          cnr: rawCase.cnr || rawCase.cnrNo || rawCase.cnrno || null,
-          primary_petitioner: petName,
-          primary_respondent: resName,
-          petitioner_adv: rawCase.petAdvocate || rawCase.petitionerAdv || rawCase.petitioner_adv || null,
-          respondent_adv: rawCase.resAdvocate || rawCase.respondentAdv || rawCase.respondent_adv || null,
-          status: ['DISPOSED', 'DISMISSED', 'ALLOWED', 'GRANTED', 'ALLOWED-WITHDRAWN'].includes(statusStr) ? 'disposed' : 'pending',
-          filing_date: filingDate,
-          registration_date: regDate || filingDate,
-          listing_date: listingDate,
-          category: category,
-          district: rawCase.district || null,
-          purpose: rawCase.purpose || rawCase.stage || null,
-          jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || null,
-          created_by: user.id,
-        };
-        
-        // Log the extracted data for debugging
-        console.log('Extracted case data:', caseData);
+          // Extract category from case number if possible
+          let category = null;
+          if (isNumbered) {
+            const match = normalizedCaseNumber.match(/^([A-Z]+)/i);
+            if (match) category = match[1].toUpperCase();
+          }
 
-        let existingCase: any = null;
-        let checkError: any = null;
+          // Extract all available fields from the API response
+          const caseData: Partial<Case> = {
+            case_number: normalizedCaseNumber,
+            sr_number: advCase.srNumber || rawCase.sr_no || rawCase.srNumber || rawCase.sr_number || null,
+            cnr: rawCase.cnr || rawCase.cnrNo || rawCase.cnrno || null,
+            primary_petitioner: petName || 'Unknown',
+            primary_respondent: resName || 'Unknown',
+            petitioner_adv: rawCase.petAdvocate || rawCase.petitionerAdv || rawCase.petitioner_adv || null,
+            respondent_adv: rawCase.resAdvocate || rawCase.respondentAdv || rawCase.respondent_adv || null,
+            status: ['DISPOSED', 'DISMISSED', 'ALLOWED', 'GRANTED', 'ALLOWED-WITHDRAWN'].includes(statusStr) ? 'disposed' : 'pending',
+            filing_date: filingDate,
+            registration_date: regDate || filingDate,
+            listing_date: listingDate,
+            category: category,
+            district: rawCase.district || null,
+            purpose: rawCase.purpose || rawCase.stage || null,
+            jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || null,
+            created_by: user.id, // CRITICAL: Always set created_by from authenticated user
+          };
+          
+          // Log the extracted data for debugging
+          console.log('Extracted case data:', caseData);
 
-        // Check for duplicates based on case type using maybeSingle to avoid multi-row errors
-        if (uniqueValue) {
-          const column = isNumbered ? 'case_number' : 'sr_number';
-          const result = await supabase
-            .from('cases')
-            .select('id')
-            .eq(column, uniqueValue)
-            .limit(1)
-            .maybeSingle();
-          existingCase = result.data;
-          checkError = result.error;
-        }
+          let existingCase: any = null;
+          let checkError: any = null;
 
-        if (checkError && checkError.code !== 'PGRST116' && checkError.code !== 'PGRST123') {
-          // PGRST116 = no rows found, PGRST123 = multiple rows found (we just insert a new one)
-          console.error('Error checking case:', checkError);
+          // Check for duplicates based on case type using maybeSingle to avoid multi-row errors
+          if (uniqueValue) {
+            const column = isNumbered ? 'case_number' : 'sr_number';
+            const result = await supabase
+              .from('cases')
+              .select('id')
+              .eq(column, uniqueValue)
+              .limit(1)
+              .maybeSingle();
+            existingCase = result.data;
+            checkError = result.error;
+          }
+
+          if (checkError && checkError.code !== 'PGRST116' && checkError.code !== 'PGRST123') {
+            // PGRST116 = no rows found, PGRST123 = multiple rows found (we just insert a new one)
+            console.error('Error checking case:', checkError);
+            failureCount++;
+            failedCases.push(`${normalizedCaseNumber} (check error)`);
+            continue;
+          }
+
+          // If we still don't have a uniqueness key for unnumbered (no sr_number), insert blindly
+          if (!uniqueValue) {
+            const { data: insertedCase, error: insertBlindError } = await supabase
+              .from('cases')
+              .insert([{
+                ...caseData,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }])
+              .select()
+              .single();
+
+            if (insertBlindError) {
+              console.error('Error inserting case (no unique key):', insertBlindError);
+              failureCount++;
+              failedCases.push(`${normalizedCaseNumber} (insert error)`);
+            } else {
+              successCount++;
+              
+              // FIX: Create audit log for new case insertion with proper changed_by
+              if (insertedCase?.id) {
+                await auditLogsDB.create(
+                  insertedCase.id,
+                  'case_added',
+                  '',
+                  `Case added from Advocate Report for ${report.advName}`,
+                  user.id // CRITICAL: Pass authenticated user ID for changed_by field
+                );
+              }
+            }
+            continue;
+          }
+
+          if (existingCase?.id) {
+            // Update existing case
+            const { data: updatedCase, error: updateError } = await supabase
+              .from('cases')
+              .update({
+                ...caseData,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingCase.id)
+              .select()
+              .single();
+
+            if (updateError) {
+              console.error('Error updating case:', updateError);
+              failureCount++;
+              failedCases.push(`${normalizedCaseNumber} (update error)`);
+            } else {
+              updateCount++;
+              
+              // FIX: Create audit log for case update with proper changed_by
+              if (updatedCase?.id) {
+                await auditLogsDB.create(
+                  updatedCase.id,
+                  'case_updated',
+                  'Existing case',
+                  `Case updated from Advocate Report for ${report.advName}`,
+                  user.id // CRITICAL: Pass authenticated user ID for changed_by field
+                );
+              }
+            }
+          } else {
+            // Insert new case (numbered or unnumbered)
+            const { data: insertedCase, error: insertError } = await supabase
+              .from('cases')
+              .insert([{
+                ...caseData,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }])
+              .select()
+              .single();
+
+            if (insertError) {
+              console.error('Error inserting case:', insertError);
+              failureCount++;
+              failedCases.push(`${normalizedCaseNumber} (insert error: ${insertError.message})`);
+            } else {
+              successCount++;
+              
+              // FIX: Create audit log for new case insertion with proper changed_by
+              if (insertedCase?.id) {
+                try {
+                  await auditLogsDB.create(
+                    insertedCase.id,
+                    'case_added',
+                    '',
+                    `Case added from Advocate Report for ${report.advName}`,
+                    user.id // CRITICAL: Pass authenticated user ID for changed_by field
+                  );
+                } catch (auditError: any) {
+                  // Log audit error but don't fail the case insertion
+                  console.error(`Audit log creation failed for case ${insertedCase.id}:`, auditError);
+                }
+              }
+            }
+          }
+        } catch (innerError: any) {
+          // Catch individual case processing errors
+          console.error(`Error processing case:`, innerError);
           failureCount++;
-          continue;
-        }
-
-        // If we still don't have a uniqueness key for unnumbered (no sr_number), insert blindly
-        if (!uniqueValue) {
-          const { error: insertBlindError } = await supabase
-            .from('cases')
-            .insert([{
-              ...caseData,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }]);
-
-          if (insertBlindError) {
-            console.error('Error inserting case (no unique key):', insertBlindError);
-            failureCount++;
-          } else {
-            successCount++;
-          }
-          continue;
-        }
-
-        if (existingCase?.id) {
-          // Update existing case
-          const { error: updateError } = await supabase
-            .from('cases')
-            .update({
-              ...caseData,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', existingCase.id);
-
-          if (updateError) {
-            console.error('Error updating case:', updateError);
-            failureCount++;
-          } else {
-            updateCount++;
-          }
-        } else {
-          // Insert new case (numbered or unnumbered)
-          const { error: insertError } = await supabase
-            .from('cases')
-            .insert([{
-              ...caseData,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }]);
-
-          if (insertError) {
-            console.error('Error inserting case:', insertError);
-            failureCount++;
-          } else {
-            successCount++;
-          }
+          failedCases.push(`${advCase.caseNumber || 'Unknown'} (${innerError.message})`);
         }
       }
 
       const message = `Added: ${successCount}, Updated: ${updateCount}, Failed: ${failureCount}`;
       toast.success(message);
+      
+      // Log failed cases for debugging
+      if (failedCases.length > 0) {
+        console.error('Failed cases:', failedCases);
+      }
     } catch (error: any) {
+      console.error('Bulk add operation error:', error);
       toast.error('Bulk add operation failed: ' + error?.message);
     } finally {
       setBulkAddLoading(false);
