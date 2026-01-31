@@ -14,12 +14,15 @@ A full-stack web application for managing legal cases with live court data integ
 
 ## 📋 Features
 
-✅ Case management system
+✅ Case management system with complete case lifecycle tracking
+✅ **Submission & Return Dates tracking** - Track multiple submissions, returns, filing dates, and changes
 ✅ Live court causelist scraping (TSHC)
 ✅ Advocate report fetching
 ✅ Sitting arrangements viewer
 ✅ Calendar with hearing tracking
+✅ IA and USR details management
 ✅ User authentication (Supabase)
+✅ Case disposal order generation
 
 ## 🛠️ Tech Stack
 
@@ -36,6 +39,14 @@ A full-stack web application for managing legal cases with live court data integ
 ## 🌐 Deployment
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
+
+### Database Setup
+
+**IMPORTANT**: Before using the Submission & Return Dates feature, you must run the database migration:
+
+1. See [DATABASE_SETUP.md](./DATABASE_SETUP.md) for detailed instructions
+2. Run the SQL migration in `supabase_migrations.sql` using Supabase Dashboard
+3. Or use Supabase CLI: `supabase migration up`
 
 ### Quick Deploy:
 

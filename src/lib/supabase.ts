@@ -51,6 +51,7 @@ export interface Case {
   ia_details?: any[];
   ia_sr_details?: any[];
   usr_details?: any[];
+  submission_dates?: any[];
   connected_matters?: any[];
   vakalath?: any[];
   lower_court_details?: any[];

@@ -628,6 +628,90 @@ Generated: ${new Date().toLocaleString()}
           </div>
         </div>
 
+        {/* SUBMISSION & RETURN DATES */}
+        <div className="bg-white rounded-xl shadow-lg border-2 border-emerald-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 px-6 py-4 border-b-2 border-emerald-200">
+            <h3 className="text-2xl font-bold text-emerald-900">📅 Submission & Return Dates</h3>
+          </div>
+          <div className="p-6">
+            {toArray<any>(caseData.submission_dates).length > 0 ? (
+              <div className="space-y-6">
+                {toArray<any>(caseData.submission_dates).map((submission, idx: number) => (
+                  <div key={idx} className="border-2 border-emerald-200 rounded-lg p-4 bg-emerald-50">
+                    <div className="mb-4">
+                      <h4 className="text-lg font-bold text-emerald-900">Submission #{submission.submission_number || idx + 1}</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="bg-white p-3 rounded border border-emerald-200">
+                          <p className="text-xs font-semibold text-emerald-600 uppercase">Submission Date</p>
+                          <p className="text-sm font-bold text-gray-900">{submission.submission_date ? new Date(submission.submission_date).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded border border-emerald-200">
+                          <p className="text-xs font-semibold text-emerald-600 uppercase">Submitted By</p>
+                          <p className="text-sm font-bold text-gray-900">{submission.submitted_by || 'N/A'}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded border border-emerald-200">
+                          <p className="text-xs font-semibold text-emerald-600 uppercase">Due Date</p>
+                          <p className="text-sm font-bold text-gray-900">{submission.due_date ? new Date(submission.due_date).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded border border-emerald-200">
+                          <p className="text-xs font-semibold text-emerald-600 uppercase">Filing Date</p>
+                          <p className="text-sm font-bold text-gray-900">{submission.filing_date ? new Date(submission.filing_date).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="bg-white p-3 rounded border border-emerald-200">
+                          <p className="text-xs font-semibold text-emerald-600 uppercase">Resubmission Date</p>
+                          <p className="text-sm font-bold text-gray-900">{submission.resubmission_date ? new Date(submission.resubmission_date).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded border border-emerald-200">
+                          <p className="text-xs font-semibold text-emerald-600 uppercase">Return Date</p>
+                          <p className="text-sm font-bold text-gray-900">{submission.return_date ? new Date(submission.return_date).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded border border-emerald-200">
+                          <p className="text-xs font-semibold text-emerald-600 uppercase">Return Taken By</p>
+                          <p className="text-sm font-bold text-gray-900">{submission.return_taken_by || 'N/A'}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded border border-emerald-200">
+                          <p className="text-xs font-semibold text-emerald-600 uppercase">Changes Made</p>
+                          <p className="text-sm font-bold text-gray-900">{submission.changes_made || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    {(submission.changes_requested || submission.changes_requested_by || submission.notes) && (
+                      <div className="mt-4 space-y-2">
+                        {submission.changes_requested && (
+                          <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                            <p className="text-xs font-semibold text-yellow-700 uppercase">Changes Requested</p>
+                            <p className="text-sm text-gray-900">{submission.changes_requested}</p>
+                          </div>
+                        )}
+                        {submission.changes_requested_by && (
+                          <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                            <p className="text-xs font-semibold text-blue-700 uppercase">Changes Requested By</p>
+                            <p className="text-sm text-gray-900">{submission.changes_requested_by}</p>
+                          </div>
+                        )}
+                        {submission.notes && (
+                          <div className="bg-gray-100 p-3 rounded border border-gray-300">
+                            <p className="text-xs font-semibold text-gray-700 uppercase">Notes</p>
+                            <p className="text-sm text-gray-900">{submission.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500 text-lg">No submission records available</p>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* CONNECTED MATTERS */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 overflow-x-auto">
           <table className="min-w-full B2U-article">
@@ -678,6 +762,7 @@ Generated: ${new Date().toLocaleString()}
             </tbody>
           </table>
         </div>
+
 
         {/* PRAYER */}
         {caseData.prayer && (

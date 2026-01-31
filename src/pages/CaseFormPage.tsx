@@ -88,6 +88,20 @@ export default function CaseFormPage() {
       usr_filing_date: string;
       remarks: string;
     }>,
+    submission_dates: [] as Array<{
+      submission_number: number;
+      submission_date: string;
+      submitted_by: string;
+      due_date: string;
+      filing_date: string;
+      resubmission_date: string;
+      return_date: string;
+      return_taken_by: string;
+      changes_made: string;
+      changes_requested: string;
+      changes_requested_by: string;
+      notes: string;
+    }>,
     connected_matters: '',
     vakalath_details: [] as Array<{
       advocate_code: string;
@@ -218,6 +232,7 @@ export default function CaseFormPage() {
         document_requirements: data.document_requirements || '',
         ia_details: (() => { const v = data.ia_details; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
         usr_details: (() => { const v = data.usr_details; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
+        submission_dates: (() => { const v = data.submission_dates; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
         connected_matters: data.connected_matters || '',
         vakalath_details: (() => { const v = data.vakalath_details; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
         lower_court_details: data.lower_court_details || {
@@ -278,6 +293,7 @@ export default function CaseFormPage() {
         // New fields
         ia_details: formData.ia_details,
         usr_details: formData.usr_details,
+        submission_dates: formData.submission_dates,
         connected_matters: formData.connected_matters || null,
         vakalath_details: formData.vakalath_details,
         lower_court_details: formData.lower_court_details,
@@ -1070,6 +1086,216 @@ export default function CaseFormPage() {
             className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition"
           >
             + Add USR Detail
+          </button>
+        </div>
+
+        {/* Submission Dates Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-bold text-green-600 mb-4 border-b pb-2">SUBMISSION & RETURN DATES</h2>
+          <p className="text-sm text-gray-600 mb-4">Track case submissions, returns, filing dates and changes requested</p>
+          {formData.submission_dates.map((submission, index) => (
+            <div key={index} className="border border-gray-300 rounded-lg p-4 mb-4 bg-gray-50">
+              <div className="mb-3">
+                <h3 className="font-semibold text-gray-800">Submission #{submission.submission_number || index + 1}</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Submission Date</label>
+                  <input
+                    type="date"
+                    value={submission.submission_date}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].submission_date = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Submitted By</label>
+                  <input
+                    type="text"
+                    value={submission.submitted_by}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].submitted_by = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Name/ID of person"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    value={submission.due_date}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].due_date = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Filing Date</label>
+                  <input
+                    type="date"
+                    value={submission.filing_date}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].filing_date = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Resubmission Date</label>
+                  <input
+                    type="date"
+                    value={submission.resubmission_date}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].resubmission_date = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Return Date</label>
+                  <input
+                    type="date"
+                    value={submission.return_date}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].return_date = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Return Taken By</label>
+                  <input
+                    type="text"
+                    value={submission.return_taken_by}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].return_taken_by = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Name/ID of person"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Changes Made</label>
+                  <input
+                    type="text"
+                    value={submission.changes_made}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].changes_made = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Changes made during return"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Changes Requested</label>
+                  <textarea
+                    value={submission.changes_requested}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].changes_requested = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    rows={2}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="What changes were requested"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Changes Requested By</label>
+                  <input
+                    type="text"
+                    value={submission.changes_requested_by}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].changes_requested_by = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Name/ID of person"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={submission.notes}
+                    onChange={(e) => {
+                      const updated = [...formData.submission_dates];
+                      updated[index].notes = e.target.value;
+                      setFormData({ ...formData, submission_dates: updated });
+                    }}
+                    rows={2}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Additional notes"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = formData.submission_dates.filter((_, i) => i !== index);
+                  setFormData({ ...formData, submission_dates: updated });
+                }}
+                className="mt-3 text-red-600 hover:text-red-700 text-sm font-medium"
+              >
+                Remove Submission
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              const nextNum = formData.submission_dates.length + 1;
+              setFormData({
+                ...formData,
+                submission_dates: [...formData.submission_dates, {
+                  submission_number: nextNum,
+                  submission_date: '',
+                  submitted_by: '',
+                  due_date: '',
+                  filing_date: '',
+                  resubmission_date: '',
+                  return_date: '',
+                  return_taken_by: '',
+                  changes_made: '',
+                  changes_requested: '',
+                  changes_requested_by: '',
+                  notes: ''
+                }]
+              });
+            }}
+            className="w-full py-2 border-2 border-dashed border-green-300 rounded-lg text-green-600 hover:border-green-500 hover:text-green-700 transition"
+          >
+            + Add Submission Record
           </button>
         </div>
 
