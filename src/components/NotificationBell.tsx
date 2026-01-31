@@ -4,8 +4,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Bell } from 'lucide-react';
+import { Bell, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { notificationManager } from '@/lib/notificationManager';
 import { supabase } from '@/lib/supabase';
 
@@ -21,6 +22,7 @@ interface Notification {
 
 export default function NotificationBell() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -143,14 +145,26 @@ export default function NotificationBell() {
           <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-20 max-h-[600px] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-700">
               <h3 className="text-lg font-bold text-white">Notifications</h3>
-              {unreadCount > 0 && (
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllAsRead}
+                    className="text-sm text-white hover:text-blue-100 underline"
+                  >
+                    Mark all read
+                  </button>
+                )}
                 <button
-                  onClick={handleMarkAllAsRead}
-                  className="text-sm text-white hover:text-blue-100 underline"
+                  onClick={() => {
+                    navigate('/notifications');
+                    setShowDropdown(false);
+                  }}
+                  className="text-white hover:text-blue-100 transition"
+                  title="View all notifications"
                 >
-                  Mark all read
+                  <ArrowRight className="w-5 h-5" />
                 </button>
-              )}
+              </div>
             </div>
 
             <div className="overflow-y-auto flex-1">

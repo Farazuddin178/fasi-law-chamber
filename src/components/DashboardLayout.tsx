@@ -76,6 +76,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> },
     { name: 'Documents', path: '/documents', icon: <FileText className="w-5 h-5" /> },
     { name: 'Messages', path: '/messages', icon: <Mail className="w-5 h-5" /> },
+    { name: 'Notifications', path: '/notifications', icon: <Bell className="w-5 h-5" /> },
     { name: 'Announcements', path: '/announcements', icon: <Bell className="w-5 h-5" />, adminOnly: true },
     { name: 'Analytics', path: '/analytics', icon: <BarChart3 className="w-5 h-5" /> },
     { name: 'Expenses', path: '/expenses', icon: <Receipt className="w-5 h-5" /> },
@@ -90,7 +91,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const filteredNavItems = navItems.filter(item => {
     // For viewers, only show Analytics, Messages, and Expenses
     if (user?.role === 'viewer') {
-      return ['Analytics', 'Messages', 'Expenses'].includes(item.name);
+      return ['Analytics', 'Messages', 'Expenses', 'Notifications'].includes(item.name);
     }
     
     // For other users, hide admin-only items if not admin
@@ -237,6 +238,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main content */}
       <main className="flex-1 min-h-screen bg-gray-50">
         <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full">
+          <div className="hidden lg:flex items-center justify-end mb-4">
+            <NotificationBell />
+          </div>
           {children}
         </div>
       </main>

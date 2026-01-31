@@ -4,6 +4,7 @@ import { supabase, Case } from '@/lib/supabase';
 import { ArrowLeft, Download, Edit, Trash, Plus, User, Clock, FileText, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import AllCaseFieldsDisplay from '@/components/AllCaseFieldsDisplay';
 
 interface CaseSubmission {
   id: string;
@@ -881,7 +882,7 @@ Generated: ${new Date().toLocaleString()}
             </button>
           </div>
           <div className="p-6">
-            {submissions.length > 0 ? (
+            {submissions && submissions.length > 0 ? (
               <div className="space-y-4">
                 {submissions.map((submission) => (
                   <div key={submission.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -1004,6 +1005,17 @@ Generated: ${new Date().toLocaleString()}
           </div>
         </div>
       </div>
+
+      {/* ALL CASE FIELDS DISPLAY */}
+      {caseData && (
+        <div className="mt-12">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">📋 Complete Case Information</h2>
+            <p className="text-gray-600">All fields and details for this case</p>
+          </div>
+          <AllCaseFieldsDisplay caseData={caseData} />
+        </div>
+      )}
 
       {/* Submission Modal */}
     {showSubmissionModal && (

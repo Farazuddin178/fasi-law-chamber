@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { FolderOpen, Gavel, FileText, Users, CheckCircle, Clock, Eye, AlertCircle, TrendingUp, BarChart3, Bell, Search, ThumbsUp, ThumbsDown, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+import RecentAnnouncement24hr from '@/components/RecentAnnouncement24hr';
 
 // Helper function to calculate time remaining
 const getTimeRemaining = (dueDate: string) => {
@@ -221,12 +222,12 @@ export default function DashboardPage() {
         setUserTasks(tasksRes.data || []);
       }
 
-      // Load announcements based on user role
+      // Load announcements based on user role (only get the latest one)
       let announcementsQuery = supabase
         .from('announcements')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(3);
+        .limit(1);
 
       // Filter announcements based on visibility
       if (!isAdminRole) {
@@ -403,40 +404,20 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Announcements Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      {/* Announcements Section - Latest with 24hr Timer */}
+      <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <Bell className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-bold text-gray-900">Recent Announcements</h2>
+            <h2 className="text-xl font-bold text-gray-900">Latest Announcement</h2>
           </div>
-          <Link to="/announcements" className="text-blue-600 hover:underline text-sm">View All →</Link>
         </div>
 
         {announcements.length > 0 ? (
-          <div className="space-y-4">
-            {announcements.map((announcement) => (
-              <div key={announcement.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-gray-900">{announcement.title}</h3>
-                  <span className="text-xs text-gray-500">
-                    {new Date(announcement.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-                <p className="text-gray-700 text-sm whitespace-pre-wrap line-clamp-3">{announcement.content}</p>
-                <Link
-                  to="/announcements"
-                  className="text-blue-600 hover:underline text-sm mt-2 inline-block"
-                >
-                  Read more →
-                </Link>
-              </div>
-            ))}
-          </div>
+          <RecentAnnouncement24hr announcement={announcements[0]} />
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            <Bell className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-            <p>No announcements at this time</p>
+          <div className="bg-white border border-gray-200 rounded-xl p-6 text-gray-500">
+            No active announcements right now.
           </div>
         )}
       </div>
