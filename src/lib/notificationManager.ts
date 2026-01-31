@@ -59,6 +59,7 @@ class NotificationManager {
       priority: payload.priority,
       metadata: payload.metadata,
       is_read: false,
+      read_at: null,
       created_at: new Date().toISOString(),
     });
 
@@ -94,6 +95,7 @@ class NotificationManager {
       priority: payload.priority,
       metadata: payload.metadata,
       is_read: false,
+      read_at: null,
       created_at: new Date().toISOString(),
     }));
 

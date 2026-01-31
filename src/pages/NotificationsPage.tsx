@@ -11,10 +11,11 @@ interface Notification {
   type: string; // 'roster_change' | 'task_assigned' | 'case_updated' | 'document_uploaded' | 'hearing_scheduled' | 'order_issued'
   title: string;
   message: string;
-  related_id?: string; // ID of related case/task/document
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
   is_read: boolean;
+  read_at?: string | null;
+  metadata?: Record<string, any>;
   created_at: string;
-  data?: Record<string, any>;
 }
 
 export default function NotificationsPage() {
