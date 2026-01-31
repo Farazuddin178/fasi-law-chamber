@@ -115,12 +115,20 @@ def notify_hearing_reminder():
         if not assignees:
             return jsonify({'error': 'No valid assignees found'}), 400
         
-        # Send reminders
-        results = notification_service.send_hearing_reminder(case, assignees)
+        # Send notifications
+        # Optimized: Run in background thread to prevent timeout
+        def send_reminders_async(case_data, assignees_list):
+            try:
+                notification_service.send_hearing_reminder(case_data, assignees_list)
+                logger.info("Background hearing reminders completed")
+            except Exception as e:
+                logger.error(f"Background hearing reminder failed: {e}")
+
+        run_async(send_reminders_async, case, assignees)
         
         return jsonify({
             'success': True,
-            'results': results,
+            'message': 'Hearing reminders queued',
             'case_id': case_id
         }), 200
     
@@ -176,14 +184,19 @@ def notify_announcement():
             logger.warning("No recipients found for announcement - aborting notification")
             return jsonify({'error': 'No recipients found'}), 400
         
-        # Send notifications
-        results = notification_service.send_announcement_notification(
-            announcement, recipients
-        )
+        # Send notifications in background to prevent timeout
+        def background_send(announcement_data, users_list):
+            try:
+                notification_service.send_announcement_notification(announcement_data, users_list)
+                logger.info("Background announcement notifications completed")
+            except Exception as e:
+                logger.error(f"Background notification failed: {e}")
+
+        run_async(background_send, announcement, recipients)
         
         return jsonify({
             'success': True,
-            'results': results,
+            'message': 'Announcement notifications queued in background',
             'recipients_count': len(recipients)
         }), 200
     
