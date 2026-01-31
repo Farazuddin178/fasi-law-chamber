@@ -30,3 +30,16 @@ ON public.notifications(created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user_is_read 
 ON public.notifications(user_id, is_read);
+
+-- Drop any existing triggers that cause UUID type errors
+-- These might be auto-created by Supabase and try to insert text into UUID columns
+DROP TRIGGER IF EXISTS on_task_create ON public.tasks CASCADE;
+DROP TRIGGER IF EXISTS on_task_update ON public.tasks CASCADE;
+DROP TRIGGER IF EXISTS on_notification_create ON public.notifications CASCADE;
+DROP TRIGGER IF EXISTS on_notification_update ON public.notifications CASCADE;
+DROP TRIGGER IF EXISTS notify_task_assigned ON public.tasks CASCADE;
+DROP TRIGGER IF EXISTS notify_on_task_update ON public.tasks CASCADE;
+
+-- Drop associated functions
+DROP FUNCTION IF EXISTS public.handle_task_notification() CASCADE;
+DROP FUNCTION IF EXISTS public.handle_task_update_notification() CASCADE;

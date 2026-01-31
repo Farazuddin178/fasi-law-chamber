@@ -8,6 +8,7 @@ The application uses a notifications system that requires additional columns on 
 column "related_id" of relation "notifications" does not exist
 column "related_type" of relation "notifications" does not exist
 column "data" of relation "notifications" does not exist
+column "related_id" is of type uuid but expression is of type text
 ```
 
 You MUST run the complete migration below to fix all issues at once.
@@ -73,6 +74,19 @@ ON public.notifications(created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user_is_read 
 ON public.notifications(user_id, is_read);
+
+-- Drop problematic triggers that cause type errors
+-- These try to insert text into UUID columns
+DROP TRIGGER IF EXISTS on_task_create ON public.tasks CASCADE;
+DROP TRIGGER IF EXISTS on_task_update ON public.tasks CASCADE;
+DROP TRIGGER IF EXISTS on_notification_create ON public.notifications CASCADE;
+DROP TRIGGER IF EXISTS on_notification_update ON public.notifications CASCADE;
+DROP TRIGGER IF EXISTS notify_task_assigned ON public.tasks CASCADE;
+DROP TRIGGER IF EXISTS notify_on_task_update ON public.tasks CASCADE;
+
+-- Drop associated functions
+DROP FUNCTION IF EXISTS public.handle_task_notification() CASCADE;
+DROP FUNCTION IF EXISTS public.handle_task_update_notification() CASCADE;
 ```
 
 ## Verify the Migration
@@ -97,13 +111,14 @@ You should see:
 2. **Adds `related_type` column** - Specifies the type of related entity ('task', 'case', 'document', etc.)
 3. **Adds `data` column** - Stores additional JSON data for notifications
 4. **Creates indexes** - Improves query performance for filtering and sorting notifications
-5. **Uses IF NOT EXISTS** - Safe to run multiple times without errors
+5. **Drops problematic triggers** - Removes triggers that were causing "text to UUID" conversion errors
+6. **Uses IF NOT EXISTS** - Safe to run multiple times without errors
 
 ## After Migration Complete
 
 1. **Reload your app** (hard refresh with Ctrl+Shift+R or Cmd+Shift+R)
 2. **Clear browser cache** if errors persist
-3. Try creating a task again - it should work without any column errors!
+3. Try creating and updating tasks - everything should work!
 
 ## If You Still Get Errors
 
@@ -111,11 +126,13 @@ This means one of these things:
 1. The migration didn't run successfully (check for SQL errors)
 2. You're looking at a cached version of the app
 3. The Supabase project isn't configured properly
+4. There are other triggers not listed above
 
 **Solution:**
 - Run the SQL again and confirm it says `executed successfully`
 - Hard refresh your browser (Ctrl+Shift+R)
 - Check the Supabase dashboard that you're on the correct project
+- If errors mention other triggers, check the Supabase Functions tab and disable them
 
 ## Need Help?
 
@@ -123,4 +140,5 @@ If errors persist after running the migration:
 1. Check that you're on the correct Supabase project
 2. Verify all three columns were added (run the verification SQL above)
 3. Clear your browser cache and reload
-4. If still stuck, check the Supabase logs for any trigger/function errors
+4. Go to Supabase Dashboard → Functions and disable any notification-related triggers
+5. Check the Supabase logs for any trigger/function errors
