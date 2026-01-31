@@ -187,26 +187,26 @@ export default function CaseLookupPage() {
       })) : [];
 
       const caseData = {
-        case_number: result.primary.mainno,
-        sr_number: result.primary.srno,
-        cnr: result.primary.cnrno,
-        primary_petitioner: result.primary.petitioner,
-        primary_respondent: result.primary.respondent,
-        petitioner_adv: result.primary.petitioneradv,
-        respondent_adv: result.primary.respondentadv,
-        category: result.category?.category || '',
+        case_number: result.primary?.mainno || '',
+        sr_number: result.primary?.srno || '',
+        cnr: result.primary?.cnrno || '',
+        primary_petitioner: result.primary?.petitioner || '',
+        primary_respondent: result.primary?.respondent || '',
+        petitioner_adv: result.primary?.petitioneradv || '',
+        respondent_adv: result.primary?.respondentadv || '',
+        category: result.category?.category || result.primary?.casecategory || '',
         sub_category: result.category?.subCategory || '',
         sub_sub_category: result.category?.subSubCategory || '',
-        district: result.primary.district,
-        filing_date: convertDateFormat(result.primary.filingdate),
-        registration_date: convertDateFormat(result.primary.registrationdate),
-        listing_date: convertDateFormat(result.primary.listingdate),
-        disp_date: convertDateFormat(result.primary.disposaldate),
-        disp_type: result.primary.disposaltype !== '-' ? result.primary.disposaltype : null,
-        purpose: result.primary.purpose,
-        jud_name: result.primary.judges,
-        status: (result.primary.casestatus === 'PENDING' ? 'pending' : 
-                result.primary.casestatus === 'DISPOSED' ? 'disposed' : 'pending') as 'pending' | 'filed' | 'disposed' | 'closed',
+        district: result.primary?.district || '',
+        filing_date: convertDateFormat(result.primary?.filingdate),
+        registration_date: convertDateFormat(result.primary?.registrationdate),
+        listing_date: convertDateFormat(result.primary?.listingdate),
+        disp_date: convertDateFormat(result.primary?.disposaldate),
+        disp_type: result.primary?.disposaltype && result.primary.disposaltype !== '-' ? result.primary.disposaltype : null,
+        purpose: result.primary?.purpose || '',
+        jud_name: result.primary?.judges || '',
+        status: (result.primary?.casestatus === 'PENDING' ? 'pending' : 
+                result.primary?.casestatus === 'DISPOSED' ? 'disposed' : 'pending') as 'pending' | 'filed' | 'disposed' | 'closed',
         petitioners: transformedPetitioners,
         respondents: transformedRespondents,
         ia_details: transformedIADetails,
@@ -260,8 +260,12 @@ export default function CaseLookupPage() {
         }
 
         // Update the case
+        console.log('Updating case with user ID:', user.id);
         const { error } = await casesDB.update(existingCase.id, caseData, user.id);
-        if (error) throw new Error(error);
+        if (error) {
+          console.error('Update error:', error);
+          throw new Error(error);
+        }
 
         if (updates.length > 0) {
           toast((t) => (
@@ -278,13 +282,18 @@ export default function CaseLookupPage() {
 
       } else {
         // Create New Case
+        console.log('Creating new case with user ID:', user.id);
         const { data, error } = await casesDB.create(caseData, user.id);
-        if (error) throw new Error(error);
+        if (error) {
+          console.error('Create error:', error);
+          throw new Error(error);
+        }
         toast.success('New case saved successfully!');
       }
       
       navigate('/cases');
     } catch (error: any) {
+      console.error('Save case error:', error);
       toast.error(error.message || 'Failed to save case');
     } finally {
       setSaving(false);
