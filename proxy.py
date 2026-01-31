@@ -52,8 +52,8 @@ def get_case_details():
             return jsonify({'error': 'Missing parameters: mtype, mno, myear required'}), 400
         
         url = f'https://csis.tshc.gov.in/getCaseDetails?mtype={mtype}&mno={mno}&myear={myear}'
-        # Increased timeout to 30 seconds for slow external APIs
-        response = requests.get(url, timeout=30, verify=False)
+        # Increased timeout to 60 seconds for slow external APIs
+        response = requests.get(url, timeout=60, verify=False)
         
         if response.status_code != 200:
             return jsonify({'error': f'External API returned {response.status_code}'}), 502
@@ -79,8 +79,8 @@ def get_adv_report():
             return jsonify({'error': 'Missing parameters: advcode and year required'}), 400
         
         url = f'https://csis.tshc.gov.in/getAdvReport?advcode={advcode}&year={year}'
-        # Increased timeout to 30 seconds for slow external APIs
-        response = requests.get(url, timeout=30, verify=False)
+        # Increased timeout to 60 seconds for slow external APIs
+        response = requests.get(url, timeout=60, verify=False)
         
         if response.status_code != 200:
             return jsonify({'error': f'External API returned {response.status_code}'}), 502
@@ -105,25 +105,27 @@ def get_daily_causelist():
         if not advocate_code:
             return jsonify({'error': 'Missing parameters: advocateCode required'}), 400
             
-        # The query parameter on TSHC site might be different, but based on pattern:
-        # It seems they use 'advocateCode' or 'advCode'
-        # Let's try matching the pattern in DailyCauselistPage.tsx
-        
-        url = f'https://csis.tshc.gov.in/getDailyCauselist?advocateCode={advocate_code}'
+        url = 'https://csis.tshc.gov.in/getDailyCauselist'
+        params = {'advocateCode': advocate_code}
         if list_date:
-            url += f'&listDate={list_date}'
+            params['listDate'] = list_date
             
-        logging.info(f"Fetching daily causelist from: {url}")
+        logging.info(f"Fetching daily causelist from: {url} with params {params}")
         
-        response = requests.get(url, timeout=30, verify=False)
+        # Increased timeout to match Gunicorn timeout (120s) to prevent premature 502s from upstream kills
+        # Using stream=True to reduce memory usage during the request, though we read content below
+        response = requests.get(url, params=params, timeout=110, verify=False)
         
         if response.status_code != 200:
-            # Fallback or different endpoint?
-            # Sometimes endpoint is getCauselist
             return jsonify({'error': f'External API returned {response.status_code}'}), 502
             
-        data = response.json()
-        return jsonify(data)
+        # Optimization: Return raw content directly to avoid json.loads() + jsonify() overhead
+        # This helps prevents OOM errors on large causelists
+        return Flask.response_class(
+            response.content,
+            status=200,
+            mimetype='application/json'
+        )
     except requests.exceptions.Timeout:
         return jsonify({'error': 'External API is slow - please try again'}), 504
     except Exception as e:

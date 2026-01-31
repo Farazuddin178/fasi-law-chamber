@@ -48,7 +48,8 @@ class NotificationService:
             try:
                 self.twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
                 self.twilio_enabled = True
-                logger.info("Twilio client initialized successfully")
+                masked_number = TWILIO_WHATSAPP_NUMBER[:5] + '****' + TWILIO_WHATSAPP_NUMBER[-4:] if len(TWILIO_WHATSAPP_NUMBER) > 8 else '****'
+                logger.info(f"Twilio client initialized successfully. Sender: {masked_number}")
             except Exception as e:
                 logger.error(f"Failed to initialize Twilio: {e}")
                 self.twilio_enabled = False
@@ -95,6 +96,12 @@ class NotificationService:
             # Add whatsapp: prefix
             formatted_number = f'whatsapp:{clean_number}'
             
+            # Check for self-messaging loop
+            if formatted_number == TWILIO_WHATSAPP_NUMBER:
+                error_msg = f"Cannot send WhatsApp to the same number configured as Sender ({formatted_number})"
+                logger.error(error_msg)
+                return {'success': False, 'error': error_msg}
+
             message_obj = self.twilio_client.messages.create(
                 from_=TWILIO_WHATSAPP_NUMBER,
                 body=message,
@@ -108,8 +115,17 @@ class NotificationService:
                 'status': message_obj.status
             }
         except Exception as e:
-            logger.error(f"WhatsApp send failed to {formatted_number if 'formatted_number' in locals() else to_number}: {e}")
-            return {'success': False, 'error': str(e)}
+            error_str = str(e)
+            logger.error(f"WhatsApp send failed to {formatted_number if 'formatted_number' in locals() else to_number}: {error_str}")
+            
+            if "21608" in error_str:
+                logger.warning("Twilio Error 21608: The verified Sandbox number is not the same as the Sender number.")
+            elif "63007" in error_str:
+                logger.warning("Twilio Error 63007: The Sending number is not a valid WhatsApp sender on your account. Please check TWILIO_WHATSAPP_NUMBER.")
+            elif "63031" in error_str:
+                logger.warning("Twilio Error 63031: Sender and Recipient cannot be the same.")
+                
+            return {'success': False, 'error': error_str}
     
     def send_email(self, to_email: str, subject: str, html_content: str, 
                    text_content: Optional[str] = None) -> Dict:
@@ -152,8 +168,15 @@ class NotificationService:
             logger.info(f"Email sent to {to_email}")
             return {'success': True}
         except Exception as e:
-            logger.error(f"Email send failed to {to_email}: {e}")
-            return {'success': False, 'error': str(e)}
+            error_msg = str(e)
+            logger.error(f"Email send failed to {to_email}: {error_msg}")
+            
+            if "Network is unreachable" in error_msg or "Errno 101" in error_msg:
+                 logger.warning(f"Network Unreachable: Check if port {SMTP_PORT} is allowed by your host. Render may block standard SMTP ports. Try port 587 or 2525.")
+            elif "AuthenticationError" in error_msg or "535" in error_msg:
+                 logger.warning("SMTP Authentication failed: Check SMTP_USER and SMTP_PASSWORD (use App Password for Gmail).")
+                 
+            return {'success': False, 'error': error_msg}
     
     def send_task_assignment_notification(self, task_data: Dict, assignee: Dict, 
                                           assigner_name: str) -> Dict:

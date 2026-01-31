@@ -4,6 +4,7 @@ import { Plus, X, Trash, Eye, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationHelpers } from '@/lib/database';
+import { notificationManager } from '@/lib/notificationManager';
 
 interface Announcement {
   id: string;
@@ -109,7 +110,6 @@ export default function AnnouncementsPage() {
         if (error) throw error;
         
         // Send in-app notification to all users using centralized manager
-        const { notificationManager } = await import('@/lib/notificationManager');
         await notificationManager.notifyAnnouncement(
           formData.title,
           formData.content,

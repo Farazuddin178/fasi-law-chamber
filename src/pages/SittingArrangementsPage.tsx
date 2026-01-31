@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { RefreshCw, Bell, Download, AlertCircle, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { notificationManager } from '@/lib/notificationManager';
 
 interface SittingArrangement {
   title: string;
@@ -56,7 +57,6 @@ export default function SittingArrangementsPage() {
         });
         
         // Send notification to all users about new arrangements
-        const { notificationManager } = await import('@/lib/notificationManager');
         const latestArrangement = newArrangements[0];
         await notificationManager.notifySittingArrangementChange(
           latestArrangement.title,
