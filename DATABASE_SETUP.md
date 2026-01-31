@@ -2,10 +2,11 @@
 
 ## Required Migration for Notifications
 
-The application uses a notifications system that requires the `related_id` column on the notifications table. If you're getting the error:
+The application uses a notifications system that requires additional columns on the notifications table. If you're getting errors like:
 
 ```
 column "related_id" of relation "notifications" does not exist
+column "related_type" of relation "notifications" does not exist
 ```
 
 You need to run the migration below.
@@ -43,13 +44,19 @@ supabase migration up
 Run the following SQL directly in your Supabase SQL Editor:
 
 ```sql
--- Add related_id column to notifications table
+-- Add related_id and related_type columns to notifications table
 ALTER TABLE public.notifications
 ADD COLUMN IF NOT EXISTS related_id UUID;
+
+ALTER TABLE public.notifications
+ADD COLUMN IF NOT EXISTS related_type VARCHAR(50);
 
 -- Add indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_notifications_related_id 
 ON public.notifications(related_id);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_related_type 
+ON public.notifications(related_type);
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id 
 ON public.notifications(user_id);
@@ -60,21 +67,23 @@ ON public.notifications(created_at DESC);
 
 ## Verify the Migration
 
-After running the migration, verify that the column exists by running:
+After running the migration, verify that the columns exist by running:
 
 ```sql
 SELECT column_name, data_type 
 FROM information_schema.columns 
-WHERE table_name = 'notifications';
+WHERE table_name = 'notifications'
+ORDER BY ordinal_position;
 ```
 
-You should see `related_id` in the results with type `uuid`.
+You should see both `related_id` (uuid type) and `related_type` (character varying type) in the results.
 
 ## What This Migration Does
 
-1. **Adds `related_id` column** - This allows notifications to be linked to related entities (cases, tasks, documents, etc.)
-2. **Creates indexes** - Improves query performance for filtering and sorting notifications
-3. **Uses IF NOT EXISTS** - Safe to run multiple times without errors
+1. **Adds `related_id` column** - This allows notifications to be linked to related entities (cases, tasks, documents, etc.) by their UUID
+2. **Adds `related_type` column** - This specifies the type of related entity ('task', 'case', 'document', etc.)
+3. **Creates indexes** - Improves query performance for filtering and sorting notifications by related entity
+4. **Uses IF NOT EXISTS** - Safe to run multiple times without errors
 
 ## After Migration
 

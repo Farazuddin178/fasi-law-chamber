@@ -210,6 +210,7 @@ export interface Notification {
   is_read: boolean;
   read_at?: string | null;
   related_id?: string | null;
+  related_type?: string | null;
   metadata?: any;
   created_at: string;
 }
