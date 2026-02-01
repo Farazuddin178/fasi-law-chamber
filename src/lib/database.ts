@@ -858,6 +858,26 @@ export interface AuditLog {
 }
 
 export const auditLogsDB = {
+  // Validate and sanitize UUID - ensures changed_by is always a valid UUID
+  _validateUuid(uuid: string | null | undefined): string {
+    // Check if null, undefined, or invalid string
+    if (!uuid || uuid === 'null' || uuid === 'undefined' || uuid === '') {
+      console.warn('Audit log: changed_by is null/undefined/empty, using system fallback');
+      return '00000000-0000-0000-0000-000000000001';
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(uuid)) {
+      console.warn('Audit log: invalid UUID format for changed_by:', uuid);
+      return '00000000-0000-0000-0000-000000000001';
+    }
+
+    // Ensure UUID has hyphens
+    const cleanUuid = uuid.replace(/-/g, '');
+    return `${cleanUuid.slice(0, 8)}-${cleanUuid.slice(8, 12)}-${cleanUuid.slice(12, 16)}-${cleanUuid.slice(16, 20)}-${cleanUuid.slice(20)}`;
+  },
+
   // Get audit logs for a case
   async getByCaseId(caseId: string) {
     try {
@@ -886,8 +906,8 @@ export const auditLogsDB = {
     userId: string
   ) {
     try {
-      // CRITICAL: Ensure changed_by is never null - use system user UUID as fallback
-      const changedBy = userId || '00000000-0000-0000-0000-000000000000';
+      // CRITICAL: Validate and sanitize UUID before inserting
+      const changedBy = this._validateUuid(userId);
       
       const { data, error } = await supabase
         .from('audit_logs')
@@ -897,7 +917,7 @@ export const auditLogsDB = {
             changed_field: field,
             old_value: String(oldValue),
             new_value: String(newValue),
-            changed_by: changedBy, // ALWAYS has a value - never null
+            changed_by: changedBy, // ALWAYS has a valid UUID - never null
             timestamp: new Date().toISOString(),
           },
         ])

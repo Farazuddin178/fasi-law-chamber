@@ -112,9 +112,11 @@ export default function CaseLookupPage() {
       return;
     }
     
-    // Use system UUID as fallback if userId is null
-    const systemUUID = '00000000-0000-0000-0000-000000000000';
-    const changedBy = userId || systemUUID;
+    // CRITICAL FIX: Ensure we have a valid userId BEFORE saving
+    if (!userId) {
+      toast.error('Please login to save cases');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -274,7 +276,7 @@ export default function CaseLookupPage() {
             await auditLogsDB.trackCaseChanges(
               existingCase,
               { ...caseData, id: existingCase.id },
-              changedBy
+              userId
             );
           } catch (auditError: any) {
             console.error('Audit log creation failed:', auditError);
@@ -295,9 +297,9 @@ export default function CaseLookupPage() {
 
       } else {
         // Create New Case
-        console.log('Creating new case with user ID:', changedBy);
+        console.log('Creating new case with user ID:', userId);
         
-        const { data, error } = await casesDB.create(caseData, changedBy);
+        const { data, error } = await casesDB.create(caseData, userId);
         if (error) {
           console.error('Create error:', error);
           throw new Error(error);
@@ -311,7 +313,7 @@ export default function CaseLookupPage() {
               'case_added',
               '',
               'Case added from Case Lookup',
-              changedBy
+              userId
             );
           } catch (auditError: any) {
             console.error('Audit log creation failed:', auditError);

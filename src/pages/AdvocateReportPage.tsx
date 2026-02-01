@@ -128,9 +128,11 @@ export default function AdvocateReportPage() {
       return;
     }
 
-    // Use system UUID as fallback if userId is null
-    const systemUUID = '00000000-0000-0000-0000-000000000000';
-    const changedBy = userId || systemUUID;
+    // CRITICAL FIX: Ensure we have a valid userId BEFORE bulk adding
+    if (!userId) {
+      toast.error('Please login to add cases');
+      return;
+    }
 
     setBulkAddLoading(true);
     let successCount = 0;
@@ -194,9 +196,20 @@ export default function AdvocateReportPage() {
             district: rawCase.district || null,
             purpose: rawCase.purpose || rawCase.stage || null,
             jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || null,
-            created_by: changedBy, // Always set created_by from authenticated or system user
+            
+            // CRITICAL FIX: Save ALL JSON array fields (these were missing before)
+            petitioners: rawCase.petitioners || (petName ? [{ s_no: 1, name: petName }] : []),
+            respondents: rawCase.respondents || (resName ? [{ r_no: 1, name: resName }] : []),
+            ia_details: rawCase.ia || rawCase.ia_details || [],
+            usr_details: rawCase.usr || rawCase.usr_details || [],
+            orders: rawCase.orderdetails || rawCase.orders || [],
+            connected_matters: rawCase.connected || rawCase.connected_matters || null,
+            vakalath: rawCase.vakalath || rawCase.vakalathParams || [],
+            lower_court_details: rawCase.lowerCourt || rawCase.lower_court_details || null,
+            prayer: rawCase.prayer || null,
+            
+            created_by: userId, // Use userId directly - database.ts handles fallback
           };
-          
           // Log the extracted data for debugging
           console.log('Extracted case data:', caseData);
 
@@ -251,7 +264,7 @@ export default function AdvocateReportPage() {
                     'case_added',
                     '',
                     `Case added from Advocate Report for ${report.advName}`,
-                    changedBy // Pass authenticated or system user ID for changed_by field
+                    userId // Pass authenticated user ID for changed_by field
                   );
                 } catch (auditError: any) {
                   console.error('Audit log creation failed:', auditError);
@@ -328,7 +341,7 @@ export default function AdvocateReportPage() {
                       change.field,
                       String(change.oldValue),
                       String(change.newValue),
-                      changedBy // Pass authenticated or system user ID for changed_by field
+                      userId // Pass authenticated user ID for changed_by field
                     );
                   }
                   console.log(`Updated case ${normalizedCaseNumber} with ${changes.length} field(s)`);
@@ -365,7 +378,7 @@ export default function AdvocateReportPage() {
                     'case_added',
                     '',
                     `Case added from Advocate Report for ${report.advName}`,
-                    changedBy // Pass authenticated or system user ID for changed_by field
+                    userId // Pass authenticated user ID for changed_by field
                   );
                 } catch (auditError: any) {
                   // Log audit error but don't fail the case insertion
