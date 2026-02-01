@@ -217,8 +217,13 @@ export default function AdvocateReportPage() {
 
     const transformedConnected = Array.isArray(result.connected)
       ? (result.connected || []).map((c: any) => {
+          if (!c) return { case_number: '' };
           if (typeof c === 'string') return { case_number: c };
-          return { case_number: c.caseNumber || c.mainno || c };
+          if (typeof c === 'number') return { case_number: String(c) };
+          // Normalize all possible field names for case number
+          return {
+            case_number: c.case_number || c.connectedCaseno || c.connected_case_no || c.caseNumber || c.mainno || String(c) || ''
+          };
         })
       : [];
 
@@ -323,21 +328,22 @@ export default function AdvocateReportPage() {
             }
           }
 
-          // Extract all available fields from the API response
+          // Extract all available fields from the API response - NORMALIZE all field names
           const normalizedConnectedMatters = Array.isArray(rawCase.connected || rawCase.connected_matters)
             ? (rawCase.connected || rawCase.connected_matters).map((cm: any) => {
                 if (!cm) return { case_number: '' };
                 if (typeof cm === 'string') return { case_number: cm };
                 if (typeof cm === 'number') return { case_number: String(cm) };
-                return {
-                  case_number:
-                    cm.case_number ||
-                    cm.connectedCaseno ||
-                    cm.connected_case_no ||
-                    cm.connected_case ||
-                    cm.caseNumber ||
-                    '',
-                };
+                // Normalize: extract case_number from any field name variation and store ONLY case_number
+                const caseNum = 
+                  cm.case_number ||
+                  cm.connectedCaseno ||
+                  cm.connected_case_no ||
+                  cm.connected_case ||
+                  cm.caseNumber ||
+                  cm.mainno ||
+                  '';
+                return { case_number: String(caseNum) };
               })
             : [];
 
