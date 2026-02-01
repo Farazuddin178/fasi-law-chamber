@@ -293,8 +293,13 @@ export default function CaseLookupPage() {
 
       } else {
         // Create New Case
-        console.log('Creating new case with user ID:', user.id);
-        const { data, error } = await casesDB.create(caseData, userId);
+        console.log('Creating new case with user ID:', userId);
+        
+        // Use system UUID as fallback for changed_by
+        const systemUUID = '00000000-0000-0000-0000-000000000000';
+        const fallbackUserId = userId || systemUUID;
+        
+        const { data, error } = await casesDB.create(caseData, fallbackUserId);
         if (error) {
           console.error('Create error:', error);
           throw new Error(error);
@@ -308,10 +313,11 @@ export default function CaseLookupPage() {
               'case_added',
               '',
               'Case added from Case Lookup',
-              userId
+              fallbackUserId
             );
           } catch (auditError: any) {
             console.error('Audit log creation failed:', auditError);
+            // Don't fail the whole operation if audit fails
           }
         }
         toast.success('New case saved successfully!');
