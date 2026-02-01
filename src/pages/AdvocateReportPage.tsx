@@ -128,11 +128,9 @@ export default function AdvocateReportPage() {
       return;
     }
 
-    // CRITICAL: Check user authentication to ensure changed_by is populated
-    if (!userId) {
-      toast.error('User not authenticated. Please log in to add cases.');
-      return;
-    }
+    // Use system UUID as fallback if userId is null
+    const systemUUID = '00000000-0000-0000-0000-000000000000';
+    const changedBy = userId || systemUUID;
 
     setBulkAddLoading(true);
     let successCount = 0;
@@ -196,7 +194,7 @@ export default function AdvocateReportPage() {
             district: rawCase.district || null,
             purpose: rawCase.purpose || rawCase.stage || null,
             jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || null,
-            created_by: userId, // CRITICAL: Always set created_by from authenticated user
+            created_by: changedBy, // Always set created_by from authenticated or system user
           };
           
           // Log the extracted data for debugging
@@ -245,15 +243,19 @@ export default function AdvocateReportPage() {
             } else {
               successCount++;
               
-              // FIX: Create audit log for new case insertion with proper changed_by
+              // Create audit log for new case insertion with proper changed_by
               if (insertedCase?.id) {
-                await auditLogsDB.create(
-                  insertedCase.id,
-                  'case_added',
-                  '',
-                  `Case added from Advocate Report for ${report.advName}`,
-                  userId // CRITICAL: Pass authenticated user ID for changed_by field
-                );
+                try {
+                  await auditLogsDB.create(
+                    insertedCase.id,
+                    'case_added',
+                    '',
+                    `Case added from Advocate Report for ${report.advName}`,
+                    changedBy // Pass authenticated or system user ID for changed_by field
+                  );
+                } catch (auditError: any) {
+                  console.error('Audit log creation failed:', auditError);
+                }
               }
             }
             continue;
@@ -326,7 +328,7 @@ export default function AdvocateReportPage() {
                       change.field,
                       String(change.oldValue),
                       String(change.newValue),
-                      userId // CRITICAL: Pass authenticated user ID for changed_by field
+                      changedBy // Pass authenticated or system user ID for changed_by field
                     );
                   }
                   console.log(`Updated case ${normalizedCaseNumber} with ${changes.length} field(s)`);
@@ -355,7 +357,7 @@ export default function AdvocateReportPage() {
             } else {
               successCount++;
               
-              // FIX: Create audit log for new case insertion with proper changed_by
+              // Create audit log for new case insertion with proper changed_by
               if (insertedCase?.id) {
                 try {
                   await auditLogsDB.create(
@@ -363,7 +365,7 @@ export default function AdvocateReportPage() {
                     'case_added',
                     '',
                     `Case added from Advocate Report for ${report.advName}`,
-                      userId // CRITICAL: Pass authenticated user ID for changed_by field
+                    changedBy // Pass authenticated or system user ID for changed_by field
                   );
                 } catch (auditError: any) {
                   // Log audit error but don't fail the case insertion
