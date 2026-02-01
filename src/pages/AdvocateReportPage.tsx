@@ -249,7 +249,7 @@ export default function AdvocateReportPage() {
       transformedIADetails,
       transformedUSRDetails,
       transformedOrders,
-      transformedConnected,
+      transformedConnectedMatters: transformedConnected,
       transformedLowerCourt,
       transformedVakalath
     };
@@ -368,8 +368,6 @@ export default function AdvocateReportPage() {
             vakalath: transformed.transformedVakalath || rawCase.vakalath || rawCase.vakalathParams || [],
             lower_court_details: transformed.transformedLowerCourt || rawCase.lowerCourt || rawCase.lower_court_details || null,
             prayer: rawCase.prayer || null,
-            statute: rawCase.statute || rawCase.statutes || null,
-            court_name: 'TELANGANA HIGH COURT',
             created_by: userId, // Use userId directly - database.ts handles fallback
           };
           // Log the extracted data for debugging
