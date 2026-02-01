@@ -104,7 +104,10 @@ export default function CaseFormPage() {
       changes_requested_by: string;
       notes: string;
     }>,
-    connected_matters: '',
+    connected_matters: [] as Array<{
+      case_number: string;
+      connected_case_no?: string;
+    }>,
     vakalath_details: [] as Array<{
       advocate_code: string;
       advocate_name: string;
@@ -235,7 +238,29 @@ export default function CaseFormPage() {
         ia_details: (() => { const v = data.ia_details; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
         usr_details: (() => { const v = data.usr_details; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
         submission_dates: (() => { const v = data.submission_dates; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
-        connected_matters: data.connected_matters || '',
+        connected_matters: (() => {
+          const v = data.connected_matters;
+          if (Array.isArray(v)) {
+            return v.map((cm: any) => ({
+              case_number: cm?.case_number || cm?.connectedCaseno || cm?.connected_case_no || cm?.connected_case || cm?.caseNumber || (typeof cm === 'string' ? cm : ''),
+              connected_case_no: cm?.connected_case_no || cm?.connectedCaseno || ''
+            }));
+          }
+          if (typeof v === 'string') {
+            try {
+              const p = JSON.parse(v);
+              if (Array.isArray(p)) {
+                return p.map((cm: any) => ({
+                  case_number: cm?.case_number || cm?.connectedCaseno || cm?.connected_case_no || cm?.connected_case || cm?.caseNumber || (typeof cm === 'string' ? cm : ''),
+                  connected_case_no: cm?.connected_case_no || cm?.connectedCaseno || ''
+                }));
+              }
+            } catch {
+              return v.split(',').map((s) => ({ case_number: s.trim(), connected_case_no: '' })).filter((x) => x.case_number);
+            }
+          }
+          return [];
+        })(),
         vakalath_details: (() => { const v = data.vakalath_details; return Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } })() : []); })(),
         lower_court_details: data.lower_court_details || {
           court_name: '',
@@ -296,7 +321,7 @@ export default function CaseFormPage() {
         ia_details: formData.ia_details,
         usr_details: formData.usr_details,
         submission_dates: formData.submission_dates,
-        connected_matters: formData.connected_matters || null,
+        connected_matters: formData.connected_matters,
         vakalath_details: formData.vakalath_details,
         lower_court_details: formData.lower_court_details,
         petitioners: formData.petitioners,
@@ -1339,16 +1364,64 @@ export default function CaseFormPage() {
         {/* Connected Matters Section */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-bold text-blue-600 mb-4 border-b pb-2">CONNECTED MATTERS</h2>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Connected Case Number</label>
-            <input
-              type="text"
-              value={formData.connected_matters}
-              onChange={(e) => setFormData({ ...formData, connected_matters: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter connected case numbers"
-            />
-          </div>
+          {formData.connected_matters.map((cm, idx) => (
+            <div key={idx} className="border border-gray-300 rounded-lg p-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Connected Case Number</label>
+                  <input
+                    type="text"
+                    value={cm.case_number}
+                    onChange={(e) => {
+                      const updated = [...formData.connected_matters];
+                      updated[idx] = { ...updated[idx], case_number: e.target.value };
+                      setFormData({ ...formData, connected_matters: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., WP 123/2026"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Connected Case No (Alt)</label>
+                  <input
+                    type="text"
+                    value={cm.connected_case_no || ''}
+                    onChange={(e) => {
+                      const updated = [...formData.connected_matters];
+                      updated[idx] = { ...updated[idx], connected_case_no: e.target.value };
+                      setFormData({ ...formData, connected_matters: updated });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Optional alternate value"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = formData.connected_matters.filter((_, i) => i !== idx);
+                    setFormData({ ...formData, connected_matters: updated });
+                  }}
+                  className="text-sm text-red-600 hover:text-red-800"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData({
+                ...formData,
+                connected_matters: [...formData.connected_matters, { case_number: '', connected_case_no: '' }]
+              });
+            }}
+            className="w-full py-2 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:border-blue-500 hover:text-blue-700 transition"
+          >
+            + Add Connected Matter
+          </button>
         </div>
 
         {/* Vakalath Section */}

@@ -122,6 +122,139 @@ export default function AdvocateReportPage() {
     };
   };
 
+  // Helper to convert DD/MM/YYYY to YYYY-MM-DD
+  const convertDateFormat = (dateStr: string): string | null => {
+    if (!dateStr || dateStr === '-' || dateStr === 'null') return null;
+    try {
+      if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr.split('T')[0];
+      const parts = dateStr.split(/[\/\-]/);
+      if (parts.length === 3) {
+        const [day, month, year] = parts;
+        if (parseInt(day) > 31 || parseInt(month) > 12) return null;
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+      return null;
+    } catch (e) {
+      console.error('Date conversion error:', dateStr, e);
+      return null;
+    }
+  };
+
+  // Helper to fetch full case details for a numbered case
+  const fetchCaseDetails = async (caseNumber: string) => {
+    try {
+      const match = caseNumber.match(/^([A-Z]+)\s*(\d+)\/(\d{4})$/i);
+      if (!match) return null;
+
+      const [, mtype, mno, myear] = match;
+      const backendURL = window.location.hostname === 'localhost'
+        ? 'http://localhost:5001'
+        : '';
+
+      const url = `${backendURL}/getCaseDetails?mtype=${encodeURIComponent(mtype)}&mno=${encodeURIComponent(mno)}&myear=${encodeURIComponent(myear)}`;
+      const resp = await fetch(url);
+      const bodyText = await resp.text();
+      const contentType = resp.headers.get('content-type') || '';
+
+      if (!resp.ok) return null;
+      const data = contentType.includes('application/json') ? JSON.parse(bodyText) : null;
+      return data?.primary ? data : null;
+    } catch (e) {
+      console.error('Failed to fetch case details:', e);
+      return null;
+    }
+  };
+
+  // Transform case details like CaseLookup does
+  const transformCaseDetails = (result: any) => {
+    const transformedPetitioners = Array.isArray(result.petitioners)
+      ? (result.petitioners || []).map((p: any, idx: number) => ({
+          s_no: idx + 1,
+          name: typeof p === 'string' ? p : (p.petName || p.name || '')
+        }))
+      : [];
+
+    const transformedRespondents = Array.isArray(result.respondents)
+      ? (result.respondents || []).map((r: any, idx: number) => ({
+          r_no: idx + 1,
+          name: typeof r === 'string' ? r : (r.resName || r.name || '')
+        }))
+      : [];
+
+    const transformedIADetails = Array.isArray(result.ia)
+      ? (result.ia || []).map((ia: any) => ({
+          number: ia.iaNumber || '',
+          filing_date: convertDateFormat(ia.filingDate) || '',
+          advocate_name: ia.advName || '',
+          paper_type: ia.miscPaperType || '',
+          status: ia.status || '',
+          prayer: ia.prayer || '',
+          order_date: convertDateFormat(ia.orderDate) || '',
+          order: ia.order || ''
+        }))
+      : [];
+
+    const transformedUSRDetails = Array.isArray(result.usr)
+      ? (result.usr || []).map((usr: any) => ({
+          number: usr.usrNumber || '',
+          advocate_name: usr.advName || '',
+          usr_type: usr.usrType || '',
+          filing_date: convertDateFormat(usr.usrDate) || '',
+          remarks: usr.remarks || ''
+        }))
+      : [];
+
+    const transformedOrders = Array.isArray(result.orderdetails)
+      ? (result.orderdetails || []).map((ord: any) => ({
+          order_on: ord.orderOn || '',
+          judge_name: ord.judge || '',
+          date: convertDateFormat(ord.dateOfOrders) || '',
+          type: ord.orderType || '',
+          details: ord.orderDetails || '',
+          file: ord.orderDetails ? `https://csis.tshc.gov.in/hcorders/${ord.orderDetails}` : ''
+        }))
+      : [];
+
+    const transformedConnected = Array.isArray(result.connected)
+      ? (result.connected || []).map((c: any) => {
+          if (typeof c === 'string') return { case_number: c };
+          return { case_number: c.caseNumber || c.mainno || c };
+        })
+      : [];
+
+    const transformedLowerCourt = Array.isArray(result.lowerCourt)
+      ? (result.lowerCourt || []).map((lc: any) => ({
+          court_name: lc.courtName || lc.court || '',
+          district: lc.district || '',
+          case_no: lc.caseNumber || lc.caseNo || '',
+          judge: lc.judgeName || lc.judge || '',
+          judgement_date: convertDateFormat(lc.judgementDate || lc.dateOfJudgement) || ''
+        }))
+      : [];
+
+    const rawVakalath = result.vakalath || result.vakalathParams || [];
+    const transformedVakalath = Array.isArray(rawVakalath)
+      ? rawVakalath.map((v: any) => ({
+          advocate_code: v.advCode || '',
+          advocate_name: v.advName || '',
+          pr_no: v.prNo || '',
+          remarks: v.remarks || '',
+          file: v.link ? `https://csis.tshc.gov.in/${v.link}` : ''
+        }))
+      : [];
+
+    return {
+      transformedPetitioners,
+      transformedRespondents,
+      transformedIADetails,
+      transformedUSRDetails,
+      transformedOrders,
+      transformedConnected,
+      transformedLowerCourt,
+      transformedVakalath
+    };
+  };
+
   const bulkAddAllCases = async () => {
     if (!report || !report.caseDetails || report.caseDetails.length === 0) {
       toast.error('No cases to add');
@@ -179,6 +312,17 @@ export default function AdvocateReportPage() {
             if (match) category = match[1].toUpperCase();
           }
 
+          // FOR NUMBERED CASES: Fetch full details from backend like CaseLookup does
+          let fullDetails: any = null;
+          let transformed: any = {};
+
+          if (isNumbered) {
+            fullDetails = await fetchCaseDetails(normalizedCaseNumber);
+            if (fullDetails) {
+              transformed = transformCaseDetails(fullDetails);
+            }
+          }
+
           // Extract all available fields from the API response
           const normalizedConnectedMatters = Array.isArray(rawCase.connected || rawCase.connected_matters)
             ? (rawCase.connected || rawCase.connected_matters).map((cm: any) => {
@@ -214,17 +358,18 @@ export default function AdvocateReportPage() {
             purpose: rawCase.purpose || rawCase.stage || null,
             jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || null,
             
-            // CRITICAL FIX: Save ALL JSON array fields (these were missing before)
-            petitioners: rawCase.petitioners || (petName ? [{ s_no: 1, name: petName }] : []),
-            respondents: rawCase.respondents || (resName ? [{ r_no: 1, name: resName }] : []),
-            ia_details: rawCase.ia || rawCase.ia_details || [],
-            usr_details: rawCase.usr || rawCase.usr_details || [],
-            orders: rawCase.orderdetails || rawCase.orders || [],
-            connected_matters: normalizedConnectedMatters,
-            vakalath: rawCase.vakalath || rawCase.vakalathParams || [],
-            lower_court_details: rawCase.lowerCourt || rawCase.lower_court_details || null,
+            // CRITICAL FIX: Use full details from backend if available, fallback to basic fields
+            petitioners: transformed.transformedPetitioners || rawCase.petitioners || (petName ? [{ s_no: 1, name: petName }] : []),
+            respondents: transformed.transformedRespondents || rawCase.respondents || (resName ? [{ r_no: 1, name: resName }] : []),
+            ia_details: transformed.transformedIADetails || rawCase.ia || rawCase.ia_details || [],
+            usr_details: transformed.transformedUSRDetails || rawCase.usr || rawCase.usr_details || [],
+            orders: transformed.transformedOrders || rawCase.orderdetail || rawCase.orders || [],
+            connected_matters: transformed.transformedConnectedMatters || normalizedConnectedMatters || [],
+            vakalath: transformed.transformedVakalath || rawCase.vakalath || rawCase.vakalathParams || [],
+            lower_court_details: transformed.transformedLowerCourt || rawCase.lowerCourt || rawCase.lower_court_details || null,
             prayer: rawCase.prayer || null,
-            
+            statute: rawCase.statute || rawCase.statutes || null,
+            court_name: 'TELANGANA HIGH COURT',
             created_by: userId, // Use userId directly - database.ts handles fallback
           };
           // Log the extracted data for debugging
