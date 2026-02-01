@@ -260,25 +260,26 @@ export default function CaseLookupPage() {
           updates.push(`New IAs: Found ${newIACount - oldIACount} new IA(s)`);
         }
 
-        // Update the case
-        const { error } = await casesDB.update(existingCase.id, caseData);
-        if (error) {
-          console.error('Update error:', error);
-          throw new Error(error);
-        }
-
-        // Create audit logs for changed fields (ensures changed_by is populated)
-        try {
-          await auditLogsDB.trackCaseChanges(
-            existingCase,
-            { ...caseData, id: existingCase.id },
-            userId
-          );
-        } catch (auditError: any) {
-          console.error('Audit log creation failed:', auditError);
-        }
-
+        // ONLY update if there are actual changes
         if (updates.length > 0) {
+          // Update the case
+          const { error } = await casesDB.update(existingCase.id, caseData);
+          if (error) {
+            console.error('Update error:', error);
+            throw new Error(error);
+          }
+
+          // Create audit logs ONLY for actual changes
+          try {
+            await auditLogsDB.trackCaseChanges(
+              existingCase,
+              { ...caseData, id: existingCase.id },
+              userId
+            );
+          } catch (auditError: any) {
+            console.error('Audit log creation failed:', auditError);
+          }
+
           toast((t) => (
             <div>
               <p className="font-bold">Case Updated Successfully!</p>
@@ -288,7 +289,8 @@ export default function CaseLookupPage() {
             </div>
           ), { duration: 6000, icon: '📝' });
         } else {
-          toast.success('Case updated! No significant changes found.');
+          // No changes detected
+          toast.success('No changes required - Case is already up to date!', { icon: '✓' });
         }
 
       } else {
