@@ -886,6 +886,9 @@ export const auditLogsDB = {
     userId: string
   ) {
     try {
+      // CRITICAL: Ensure changed_by is never null - use system user UUID as fallback
+      const changedBy = userId || '00000000-0000-0000-0000-000000000000';
+      
       const { data, error } = await supabase
         .from('audit_logs')
         .insert([
@@ -894,7 +897,7 @@ export const auditLogsDB = {
             changed_field: field,
             old_value: String(oldValue),
             new_value: String(newValue),
-            changed_by: userId,
+            changed_by: changedBy, // ALWAYS has a value - never null
             timestamp: new Date().toISOString(),
           },
         ])
@@ -904,6 +907,7 @@ export const auditLogsDB = {
       if (error) throw error;
       return { data, error: null };
     } catch (error: any) {
+      console.error('Audit log error:', error);
       return { data: null, error: error.message };
     }
   },
@@ -946,6 +950,8 @@ export const auditLogsDB = {
     }
 
     // Create audit log entries for each change
+    // CRITICAL: Use fallback to system user UUID to prevent null changed_by
+    const changedBy = userId || '00000000-0000-0000-0000-000000000000';
     const results = [];
     for (const change of changes) {
       const result = await this.create(
@@ -953,7 +959,7 @@ export const auditLogsDB = {
         change.field,
         change.oldValue,
         change.newValue,
-        userId
+        changedBy
       );
       results.push(result);
     }
