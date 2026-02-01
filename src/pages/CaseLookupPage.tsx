@@ -262,24 +262,43 @@ export default function CaseLookupPage() {
           updates.push(`New IAs: Found ${newIACount - oldIACount} new IA(s)`);
         }
 
+        // Check for new USRs
+        const oldUSRCount = Array.isArray(existingCase.usr_details) ? existingCase.usr_details.length : 0;
+        const newUSRCount = caseData.usr_details.length;
+        if (newUSRCount > oldUSRCount) {
+          updates.push(`New USRs: Found ${newUSRCount - oldUSRCount} new USR(s)`);
+        }
+
+        // Check for new Vakalaths
+        const oldVakalathCount = Array.isArray(existingCase.vakalath) ? existingCase.vakalath.length : 0;
+        const newVakalathCount = caseData.vakalath.length;
+        if (newVakalathCount > oldVakalathCount) {
+          updates.push(`New Vakalaths: Found ${newVakalathCount - oldVakalathCount} new vakalath(s)`);
+        }
+
         // ONLY update if there are actual changes
         if (updates.length > 0) {
-          // Update the case
+          // Update the case with all new data
           const { error } = await casesDB.update(existingCase.id, caseData);
           if (error) {
             console.error('Update error:', error);
             throw new Error(error);
           }
 
-          // Create audit logs ONLY for actual changes
+          // Create individual audit logs for each update (NOT using trackCaseChanges)
           try {
-            await auditLogsDB.trackCaseChanges(
-              existingCase,
-              { ...caseData, id: existingCase.id },
-              userId
-            );
+            for (const update of updates) {
+              await auditLogsDB.create(
+                existingCase.id,
+                'case_updated',
+                '',
+                update,
+                userId
+              );
+            }
           } catch (auditError: any) {
             console.error('Audit log creation failed:', auditError);
+            // Don't fail the whole operation if audit fails
           }
 
           toast((t) => (
@@ -290,9 +309,14 @@ export default function CaseLookupPage() {
               </ul>
             </div>
           ), { duration: 6000, icon: '📝' });
+          
+          navigate('/cases');
         } else {
-          // No changes detected
-          toast.success('No changes required - Case is already up to date!', { icon: '✓' });
+          // No changes detected - don't navigate, just show message
+          toast.success('Case already exists with no changes to update!', { 
+            icon: '✓',
+            duration: 4000 
+          });
         }
 
       } else {
