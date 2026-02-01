@@ -180,6 +180,23 @@ export default function AdvocateReportPage() {
           }
 
           // Extract all available fields from the API response
+          const normalizedConnectedMatters = Array.isArray(rawCase.connected || rawCase.connected_matters)
+            ? (rawCase.connected || rawCase.connected_matters).map((cm: any) => {
+                if (!cm) return { case_number: '' };
+                if (typeof cm === 'string') return { case_number: cm };
+                if (typeof cm === 'number') return { case_number: String(cm) };
+                return {
+                  case_number:
+                    cm.case_number ||
+                    cm.connectedCaseno ||
+                    cm.connected_case_no ||
+                    cm.connected_case ||
+                    cm.caseNumber ||
+                    '',
+                };
+              })
+            : [];
+
           const caseData: Partial<Case> = {
             case_number: normalizedCaseNumber,
             sr_number: advCase.srNumber || rawCase.sr_no || rawCase.srNumber || rawCase.sr_number || null,
@@ -203,7 +220,7 @@ export default function AdvocateReportPage() {
             ia_details: rawCase.ia || rawCase.ia_details || [],
             usr_details: rawCase.usr || rawCase.usr_details || [],
             orders: rawCase.orderdetails || rawCase.orders || [],
-            connected_matters: rawCase.connected || rawCase.connected_matters || null,
+            connected_matters: normalizedConnectedMatters,
             vakalath: rawCase.vakalath || rawCase.vakalathParams || [],
             lower_court_details: rawCase.lowerCourt || rawCase.lower_court_details || null,
             prayer: rawCase.prayer || null,

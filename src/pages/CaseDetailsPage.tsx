@@ -57,6 +57,23 @@ export default function CaseDetailsPage() {
     return [];
   };
 
+  const formatConnectedMatter = (cm: any): string => {
+    if (!cm) return '-';
+    if (typeof cm === 'string') return cm;
+    if (typeof cm === 'number') return String(cm);
+    if (typeof cm === 'object') {
+      return (
+        cm.case_number ||
+        cm.connectedCaseno ||
+        cm.connected_case_no ||
+        cm.connected_case ||
+        cm.caseNumber ||
+        '-'
+      );
+    }
+    return '-';
+  };
+
   // Helper function to generate disposal order PDF URL
   const getDisposalOrderUrl = (): string | null => {
     if (!caseData || caseData.status !== 'disposed' || !caseData.case_number) return null;
@@ -895,7 +912,7 @@ Generated: ${new Date().toLocaleString()}
               <tr><th colSpan={1} className="text-center text-blue-700 font-bold">CONNECTED MATTERS</th></tr>
               <tr><td>Connected Case Number</td></tr>
               {toArray<any>(caseData.connected_matters).map((cm, idx: number) => (
-                <tr key={idx}><td>{cm.case_number || cm || '-'}</td></tr>
+                <tr key={idx}><td>{formatConnectedMatter(cm)}</td></tr>
               ))}
             </tbody>
           </table>
