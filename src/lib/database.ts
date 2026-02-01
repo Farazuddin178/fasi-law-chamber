@@ -970,8 +970,7 @@ export const auditLogsDB = {
     }
 
     // Create audit log entries for each change
-    // CRITICAL: Use fallback to system user UUID to prevent null changed_by
-    const changedBy = userId || '00000000-0000-0000-0000-000000000000';
+    // CRITICAL: Validate UUID before using it
     const results = [];
     for (const change of changes) {
       const result = await this.create(
@@ -979,7 +978,7 @@ export const auditLogsDB = {
         change.field,
         change.oldValue,
         change.newValue,
-        changedBy
+        userId // Pass userId directly - create() will validate it
       );
       results.push(result);
     }
