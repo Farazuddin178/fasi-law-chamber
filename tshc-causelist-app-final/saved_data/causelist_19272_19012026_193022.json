@@ -1,0 +1,143 @@
+{
+  "advocate_code": "19272",
+  "cases": [
+    {
+      "case_no": "WP/30653/2025",
+      "connected_cases": [
+        "IA 1/2025(Direction Petition)"
+      ],
+      "court": null,
+      "district": "HYDERABAD",
+      "judge": null,
+      "petitioner": "Mohammed Tabrez Ahmed Khan",
+      "petitioner_advocate": "MD FASIUDDIN",
+      "remarks": "",
+      "respondent": "The State of Telangana",
+      "respondent_advocate": "",
+      "s_no": "97",
+      "stage": "ADMISSION (HOME)"
+    },
+    {
+      "case_no": "WP/30901/2025",
+      "connected_cases": [
+        "IA 1/2025(Direction Petition)"
+      ],
+      "court": null,
+      "district": "HYDERABAD",
+      "judge": null,
+      "petitioner": "Syed Taha Arsalan",
+      "petitioner_advocate": "MD FASIUDDIN",
+      "remarks": "",
+      "respondent": "The State of Telangana",
+      "respondent_advocate": "GP FOR HOME",
+      "s_no": "98",
+      "stage": "ADMISSION (HOME)"
+    },
+    {
+      "case_no": "WP/36567/2025",
+      "connected_cases": [
+        "IA 1/2025(Direction Petition)"
+      ],
+      "court": null,
+      "district": "HYDERABAD",
+      "judge": null,
+      "petitioner": "Mohammed Nasir",
+      "petitioner_advocate": "MD FASIUDDIN",
+      "remarks": "",
+      "respondent": "State of Telangana",
+      "respondent_advocate": "GP FOR HOME",
+      "s_no": "37",
+      "stage": "ADMISSION (HOME)"
+    },
+    {
+      "case_no": "CRLP/8464/2024",
+      "connected_cases": [
+        "IA 1/2024(Stay Petition)"
+      ],
+      "court": null,
+      "district": "HYDERABAD",
+      "judge": null,
+      "petitioner": "Mr. Syed Zaheeruddin Khazi",
+      "petitioner_advocate": "MD FASIUDDIN",
+      "remarks": "",
+      "respondent": "The State of Telangana",
+      "respondent_advocate": "PUBLIC PROSECUTOR",
+      "s_no": "23",
+      "stage": "ADMISSION"
+    },
+    {
+      "case_no": "CRLP/338/2026",
+      "connected_cases": [
+        "IA 1/2026(Dispense with Petition)",
+        "IA 2/2026(Stay Petition)"
+      ],
+      "court": null,
+      "district": "HYDERABAD",
+      "judge": null,
+      "petitioner": "Mohd Maaz Mohiuddin,",
+      "petitioner_advocate": "MD FASIUDDIN",
+      "remarks": "",
+      "respondent": "The State of Telangana",
+      "respondent_advocate": "PUBLIC PROSECUTOR",
+      "s_no": "11",
+      "stage": "FOR ADMISSION"
+    },
+    {
+      "case_no": "CRLP/10502/2025",
+      "connected_cases": [
+        "IA 2/2025(Stay Petition)",
+        "IA 3/2025(Permission Petition)",
+        "IA 4/2025(Compromise Petition)"
+      ],
+      "court": null,
+      "district": "HYDERABAD",
+      "judge": null,
+      "petitioner": "Syed Maaz Hussaini",
+      "petitioner_advocate": "MD FASIUDDIN",
+      "remarks": "",
+      "respondent": "The State of Telangana",
+      "respondent_advocate": "PUBLIC PROSECUTORMOHD RIZWANMOHD RIZWAN (R2)",
+      "s_no": "70",
+      "stage": "FOR COMPROMISE"
+    },
+    {
+      "case_no": "CRLP/9966/2025",
+      "connected_cases": [
+        "IA 1/2025(Dispense with Petition)",
+        "IA 2/2025(Stay Petition)"
+      ],
+      "court": null,
+      "district": "HYDERABAD",
+      "judge": null,
+      "petitioner": "Syed Shams Uddin alias NOOR",
+      "petitioner_advocate": "MD FASIUDDIN",
+      "remarks": "",
+      "respondent": "The State of Telangana",
+      "respondent_advocate": "PUBLIC PROSECUTOR",
+      "s_no": "81",
+      "stage": "ADMISSION"
+    },
+    {
+      "case_no": "CRLP/12619/2025",
+      "connected_cases": [
+        "IA 2/2025(Stay Petition)",
+        "IA 3/2025(Amendment Petition)"
+      ],
+      "court": null,
+      "district": "MEDCHAL-MALKAJGIRI",
+      "judge": null,
+      "petitioner": "PUSHPA @ C. Pushpa,",
+      "petitioner_advocate": "MD FASIUDDIN",
+      "remarks": "",
+      "respondent": "The State of Telangana,",
+      "respondent_advocate": "PUBLIC PROSECUTOR",
+      "s_no": "83",
+      "stage": "ADMISSION"
+    }
+  ],
+  "count": 8,
+  "date": "19-01-2026",
+  "method": "requests-session",
+  "timestamp": "2026-02-05 19:29:46",
+  "total_cases_header": 8
+}

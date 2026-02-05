@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TSHC Causelist Scraper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .case-row:hover { background-color: #f8fafc; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .court-header { background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%); }
+        .stage-badge { background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <nav class="gradient-bg text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-gavel text-2xl"></i>
+                    <span class="font-bold text-xl">TSHC Causelist Scraper</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/history" class="flex items-center space-x-2 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 transition">
+                        <i class="fas fa-history"></i>
+                        <span>History</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Search Card -->
+        <div class="glass-card rounded-2xl shadow-xl p-6 mb-8">
+            <div class="flex items-center space-x-2 mb-6">
+                <div class="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded"></div>
+                <h2 class="text-2xl font-bold text-gray-800">Search Causelist</h2>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-user-tie mr-2 text-indigo-600"></i>Advocate Code
+                    </label>
+                    <input type="text" id="advocateCode" value="19272" 
+                        class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                        placeholder="Enter advocate code">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-calendar-alt mr-2 text-indigo-600"></i>Date (DD-MM-YYYY)
+                    </label>
+                    <input type="text" id="listDate" 
+                        class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                        placeholder="05-02-2026">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="searchCases()" id="searchBtn"
+                        class="w-full gradient-bg text-white font-semibold py-3 px-6 rounded-lg hover:opacity-90 transition flex items-center justify-center space-x-2">
+                        <i class="fas fa-search"></i>
+                        <span>Search Cases</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Status Message -->
+            <div id="statusMessage" class="mt-4 hidden">
+                <div class="flex items-center space-x-3 p-4 rounded-lg" id="statusContent">
+                    <div class="loading-spinner" id="loadingSpinner"></div>
+                    <span id="statusText">Searching...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="hidden fade-in">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-indigo-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">Total Cases</p>
+                            <p class="text-3xl font-bold text-indigo-600" id="totalCases">0</p>
+                        </div>
+                        <i class="fas fa-briefcase text-3xl text-indigo-200"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">From Header</p>
+                            <p class="text-3xl font-bold text-purple-600" id="headerCount">-</p>
+                        </div>
+                        <i class="fas fa-file-alt text-3xl text-purple-200"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">Advocate Code</p>
+                            <p class="text-2xl font-bold text-green-600" id="displayCode">-</p>
+                        </div>
+                        <i class="fas fa-id-card text-3xl text-green-200"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-orange-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">Date</p>
+                            <p class="text-xl font-bold text-orange-600" id="displayDate">-</p>
+                        </div>
+                        <i class="fas fa-calendar text-3xl text-orange-200"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-4 mb-6">
+                <button onclick="saveData()" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition flex items-center space-x-2">
+                    <i class="fas fa-save"></i>
+                    <span>Save to History</span>
+                </button>
+                <button onclick="exportPDF()" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition flex items-center space-x-2">
+                    <i class="fas fa-file-pdf"></i>
+                    <span>Export PDF</span>
+                </button>
+                <button onclick="exportJSON()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
+                    <i class="fas fa-file-code"></i>
+                    <span>Export JSON</span>
+                </button>
+            </div>
+
+            <!-- Cases Table -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-list mr-2 text-indigo-600"></i>Case Details
+                    </h3>
+                </div>
+                <div class="overflow-x-auto" id="casesContainer">
+                    <!-- Dynamic content will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
+        <div class="bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-3">
+            <i id="toastIcon" class="fas fa-check-circle text-green-400"></i>
+            <span id="toastMessage">Success!</span>
+        </div>
+    </div>
+
+    <script>
+        // Set default date to today
+        document.getElementById('listDate').value = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+        
+        let currentData = null;
+
+        function showStatus(message, type = 'loading') {
+            const statusDiv = document.getElementById('statusMessage');
+            const statusContent = document.getElementById('statusContent');
+            const spinner = document.getElementById('loadingSpinner');
+            const text = document.getElementById('statusText');
+            
+            statusDiv.classList.remove('hidden');
+            text.textContent = message;
+            
+            if (type === 'loading') {
+                statusContent.className = 'flex items-center space-x-3 p-4 rounded-lg bg-blue-50 text-blue-700';
+                spinner.style.display = 'block';
+            } else if (type === 'success') {
+                statusContent.className = 'flex items-center space-x-3 p-4 rounded-lg bg-green-50 text-green-700';
+                spinner.style.display = 'none';
+            } else if (type === 'error') {
+                statusContent.className = 'flex items-center space-x-3 p-4 rounded-lg bg-red-50 text-red-700';
+                spinner.style.display = 'none';
+            }
+        }
+
+        function hideStatus() {
+            document.getElementById('statusMessage').classList.add('hidden');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toastIcon');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastMessage.textContent = message;
+            if (type === 'success') {
+                toastIcon.className = 'fas fa-check-circle text-green-400';
+            } else if (type === 'error') {
+                toastIcon.className = 'fas fa-exclamation-circle text-red-400';
+            }
+            
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        async function searchCases() {
+            const code = document.getElementById('advocateCode').value.trim();
+            const date = document.getElementById('listDate').value.trim();
+            
+            if (!code) {
+                showStatus('Please enter advocate code', 'error');
+                return;
+            }
+            
+            const btn = document.getElementById('searchBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="loading-spinner mr-2"></div> Searching...';
+            
+            showStatus('Fetching data from TSHC... This may take 10-15 seconds', 'loading');
+            
+            try {
+                const response = await fetch(`/api/search?code=${encodeURIComponent(code)}&date=${encodeURIComponent(date)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                currentData = data;
+                displayResults(data);
+                showStatus(`Found ${data.count} cases successfully!`, 'success');
+                
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-search mr-2"></i> Search Cases';
+            }
+        }
+
+        function displayResults(data) {
+            document.getElementById('resultsSection').classList.remove('hidden');
+            document.getElementById('totalCases').textContent = data.count;
+            document.getElementById('headerCount').textContent = data.total_cases_header || '-';
+            document.getElementById('displayCode').textContent = data.advocate_code;
+            document.getElementById('displayDate').textContent = data.date;
+            
+            const container = document.getElementById('casesContainer');
+            
+            if (data.cases.length === 0) {
+                container.innerHTML = `
+                    <div class="p-8 text-center text-gray-500">
+                        <i class="fas fa-inbox text-4xl mb-4"></i>
+                        <p>No cases found for this advocate code and date.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Group cases by court
+            const groupedCases = {};
+            data.cases.forEach(caseItem => {
+                const courtKey = caseItem.court || 'Unknown Court';
+                if (!groupedCases[courtKey]) {
+                    groupedCases[courtKey] = [];
+                }
+                groupedCases[courtKey].push(caseItem);
+            });
+            
+            let html = '';
+            
+            for (const [court, cases] of Object.entries(groupedCases)) {
+                html += `
+                    <div class="mb-6">
+                        <div class="court-header text-white px-4 py-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h4 class="font-bold text-lg">${court}</h4>
+                                    ${cases[0].judge ? `<p class="text-sm text-blue-100">${cases[0].judge}</p>` : ''}
+                                </div>
+                                <span class="bg-white/20 px-3 py-1 rounded-full text-sm">${cases.length} cases</span>
+                            </div>
+                        </div>
+                        <table class="w-full">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">S.No</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Case No</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Petitioner</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Respondent</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Petitioner Adv.</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Respondent Adv.</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">District</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                `;
+                
+                let currentStage = null;
+                cases.forEach(caseItem => {
+                    if (caseItem.stage && caseItem.stage !== currentStage) {
+                        currentStage = caseItem.stage;
+                        html += `
+                            <tr>
+                                <td colspan="7" class="px-4 py-2 bg-red-50">
+                                    <span class="stage-badge text-white text-xs px-3 py-1 rounded-full">${caseItem.stage}</span>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                    
+                    html += `
+                        <tr class="case-row transition">
+                            <td class="px-4 py-3 text-sm text-gray-900">${caseItem.s_no}</td>
+                            <td class="px-4 py-3">
+                                <div class="text-sm font-medium text-indigo-600">${caseItem.case_no}</div>
+                                ${caseItem.connected_cases.length > 0 ? 
+                                    `<div class="text-xs text-gray-500 mt-1">${caseItem.connected_cases.join(', ')}</div>` : ''}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700 max-w-xs truncate" title="${caseItem.petitioner}">${caseItem.petitioner}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700 max-w-xs truncate" title="${caseItem.respondent}">${caseItem.respondent}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${caseItem.petitioner_advocate}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${caseItem.respondent_advocate}</td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    ${caseItem.district}
+                                </span>
+                                ${caseItem.remarks ? `<div class="text-xs text-gray-500 mt-1">${caseItem.remarks}</div>` : ''}
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                html += `</tbody></table></div>`;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        async function saveData() {
+            if (!currentData) return;
+            
+            try {
+                const response = await fetch('/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentData)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Data saved to history successfully!');
+                } else {
+                    showToast('Error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error saving data: ' + error.message, 'error');
+            }
+        }
+
+        async function exportPDF() {
+            if (!currentData) return;
+            
+            try {
+                const response = await fetch('/api/export/pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentData)
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `causelist_${currentData.advocate_code}_${currentData.date.replace(/-/g, '')}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showToast('PDF exported successfully!');
+                } else {
+                    showToast('Error exporting PDF', 'error');
+                }
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function exportJSON() {
+            if (!currentData) return;
+            
+            try {
+                const response = await fetch('/api/export/json', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentData)
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `causelist_${currentData.advocate_code}_${currentData.date.replace(/-/g, '')}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showToast('JSON exported successfully!');
+                } else {
+                    showToast('Error exporting JSON', 'error');
+                }
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        // Allow Enter key to search
+        document.getElementById('advocateCode').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchCases();
+        });
+        document.getElementById('listDate').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchCases();
+        });
+    </script>
+</body>
+</html>
