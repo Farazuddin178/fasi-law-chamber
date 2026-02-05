@@ -170,14 +170,16 @@ export default function AdvocateReportPage() {
     const transformedPetitioners = Array.isArray(result.petitioners)
       ? (result.petitioners || []).map((p: any, idx: number) => ({
           s_no: idx + 1,
-          name: typeof p === 'string' ? p : (p.petName || p.name || '')
+          name: typeof p === 'string' ? p : (p.petName || p.name || ''),
+          address: typeof p === 'string' ? '' : (p.petAddress || p.address || '')
         }))
       : [];
 
     const transformedRespondents = Array.isArray(result.respondents)
       ? (result.respondents || []).map((r: any, idx: number) => ({
           r_no: idx + 1,
-          name: typeof r === 'string' ? r : (r.resName || r.name || '')
+          name: typeof r === 'string' ? r : (r.resName || r.name || ''),
+          address: typeof r === 'string' ? '' : (r.resAddress || r.address || '')
         }))
       : [];
 
@@ -190,7 +192,20 @@ export default function AdvocateReportPage() {
           status: ia.status || '',
           prayer: ia.prayer || '',
           order_date: convertDateFormat(ia.orderDate) || '',
-          order: ia.order || ''
+          order: ia.order || '',
+          file_url: ia.fileURL || ''
+        }))
+      : [];
+
+    const transformedIASRDetails = Array.isArray(result.iasr)
+      ? (result.iasr || []).map((ia: any) => ({
+          ia_sr_no: ia.iasrNo || '',
+          paper_cd: ia.paperCd || '',
+          filing_date: convertDateFormat(ia.dateOfFiling) || '',
+          current_flag: ia.currentFlag || '',
+          adv_code: ia.advCode || '',
+          paper_type: ia.paperType || '',
+          adv_name: ia.advName || ''
         }))
       : [];
 
@@ -204,15 +219,35 @@ export default function AdvocateReportPage() {
         }))
       : [];
 
-    const transformedOrders = Array.isArray(result.orderdetails)
-      ? (result.orderdetails || []).map((ord: any) => ({
-          order_on: ord.orderOn || '',
-          judge_name: ord.judge || '',
-          date: convertDateFormat(ord.dateOfOrders) || '',
-          type: ord.orderType || '',
-          details: ord.orderDetails || '',
-          file: ord.orderDetails ? `https://csis.tshc.gov.in/hcorders/${ord.orderDetails}` : ''
+    const transformedUSRSRDetails = Array.isArray(result.usrsr)
+      ? (result.usrsr || []).map((usr: any, idx: number) => ({
+          submission_number: idx + 1,
+          submission_date: convertDateFormat(usr.usrsrDt) || '',
+          submitted_by: usr.advName || '',
+          filing_date: '',
+          due_date: '',
+          resubmission_date: '',
+          return_date: '',
+          return_taken_by: '',
+          changes_made: '',
+          changes_requested: usr.remarks || '',
+          changes_requested_by: usr.advCd ? String(usr.advCd) : '',
+          notes: usr.docName ? `USR SR ${usr.usrSrNum}: ${usr.docName}` : (usr.usrSrNum || '')
         }))
+      : [];
+
+    const transformedOrders = Array.isArray(result.orderdetails)
+      ? (result.orderdetails || []).map((ord: any) => {
+          const orderFile = ord.orderDetails ? `https://csis.tshc.gov.in/hcorders/${ord.orderDetails}` : '';
+          return {
+            order_on: ord.orderOn || '',
+            judge_name: ord.judge || '',
+            date: convertDateFormat(ord.dateOfOrders) || '',
+            type: ord.orderType || '',
+            details: orderFile || ord.orderDetails || '',
+            file: orderFile
+          };
+        })
       : [];
 
     const transformedConnected = Array.isArray(result.connected)
@@ -237,6 +272,16 @@ export default function AdvocateReportPage() {
         }))
       : [];
 
+    if (result.trail) {
+      transformedLowerCourt.push({
+        court_name: result.trail.courtName || '',
+        district: result.trail.district || '',
+        case_no: result.trail.trialCourtCaseNumber || '',
+        judge: result.trail.judge || '',
+        judgement_date: convertDateFormat(result.trail.judgmentDate) || ''
+      });
+    }
+
     const rawVakalath = result.vakalath || result.vakalathParams || [];
     const transformedVakalath = Array.isArray(rawVakalath)
       ? rawVakalath.map((v: any) => ({
@@ -248,15 +293,20 @@ export default function AdvocateReportPage() {
         }))
       : [];
 
+    const transformedCaseHistory = Array.isArray(result.casehistory) ? result.casehistory : [];
+
     return {
       transformedPetitioners,
       transformedRespondents,
       transformedIADetails,
+      transformedIASRDetails,
       transformedUSRDetails,
+      transformedUSRSRDetails,
       transformedOrders,
       transformedConnectedMatters: transformedConnected,
       transformedLowerCourt,
-      transformedVakalath
+      transformedVakalath,
+      transformedCaseHistory
     };
   };
 
@@ -347,6 +397,9 @@ export default function AdvocateReportPage() {
               })
             : [];
 
+          const fileUrlRaw = rawCase.fileURL || fullDetails?.primary?.fileURL || '';
+          const fileUrl = fileUrlRaw ? `https://csis.tshc.gov.in/${String(fileUrlRaw).replace(/^\/+/, '')}` : null;
+
           const caseData: Partial<Case> = {
             case_number: normalizedCaseNumber,
             sr_number: advCase.srNumber || rawCase.sr_no || rawCase.srNumber || rawCase.sr_number || null,
@@ -359,21 +412,29 @@ export default function AdvocateReportPage() {
             filing_date: filingDate,
             registration_date: regDate || filingDate,
             listing_date: listingDate,
-            category: category,
-            district: rawCase.district || null,
-            purpose: rawCase.purpose || rawCase.stage || null,
-            jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || null,
+            category: fullDetails?.category?.category || category,
+            sub_category: fullDetails?.category?.subCategory || null,
+            sub_sub_category: fullDetails?.category?.subSubCategory || null,
+            district: rawCase.district || fullDetails?.primary?.district || null,
+            purpose: rawCase.purpose || rawCase.stage || fullDetails?.primary?.purpose || null,
+            jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || fullDetails?.primary?.judges || null,
+            disp_date: parseIndianDate(fullDetails?.primary?.disposaldate) || null,
+            disp_type: fullDetails?.primary?.disposaltype || null,
+            disposal_order_file: fileUrl,
             
             // CRITICAL FIX: Use full details from backend if available, fallback to basic fields
             petitioners: transformed.transformedPetitioners || rawCase.petitioners || (petName ? [{ s_no: 1, name: petName }] : []),
             respondents: transformed.transformedRespondents || rawCase.respondents || (resName ? [{ r_no: 1, name: resName }] : []),
             ia_details: transformed.transformedIADetails || rawCase.ia || rawCase.ia_details || [],
+            ia_sr_details: transformed.transformedIASRDetails || rawCase.iasr || [],
             usr_details: transformed.transformedUSRDetails || rawCase.usr || rawCase.usr_details || [],
+            submission_dates: transformed.transformedUSRSRDetails || rawCase.usrsr || [],
             orders: transformed.transformedOrders || rawCase.orderdetail || rawCase.orders || [],
             connected_matters: transformed.transformedConnectedMatters || normalizedConnectedMatters || [],
             vakalath: transformed.transformedVakalath || rawCase.vakalath || rawCase.vakalathParams || [],
             lower_court_details: transformed.transformedLowerCourt || rawCase.lowerCourt || rawCase.lower_court_details || null,
-            prayer: rawCase.prayer || null,
+            other_documents: transformed.transformedCaseHistory || rawCase.casehistory || [],
+            prayer: rawCase.prayer || fullDetails?.prayer?.prayer || null,
             created_by: userId, // Use userId directly - database.ts handles fallback
           };
           // Log the extracted data for debugging
@@ -478,6 +539,54 @@ export default function AdvocateReportPage() {
                 });
                 mergedCaseData[field as keyof Case] = newValue;
               }
+            }
+
+            // Merge arrays/objects when existing is empty
+            const arrayFields = [
+              'petitioners',
+              'respondents',
+              'ia_details',
+              'ia_sr_details',
+              'usr_details',
+              'submission_dates',
+              'orders',
+              'connected_matters',
+              'vakalath',
+              'other_documents',
+              'lower_court_details'
+            ];
+
+            for (const field of arrayFields) {
+              const oldArr = (existingCase as any)[field];
+              const newArr = (caseData as any)[field];
+              const oldLen = Array.isArray(oldArr) ? oldArr.length : 0;
+              const newLen = Array.isArray(newArr) ? newArr.length : 0;
+              if (newLen > 0 && oldLen === 0) {
+                mergedCaseData[field as keyof Case] = newArr;
+                changes.push({
+                  field,
+                  oldValue: '(empty)',
+                  newValue: `Added ${newLen} item(s)`
+                });
+              }
+            }
+
+            if (!existingCase.disposal_order_file && caseData.disposal_order_file) {
+              mergedCaseData.disposal_order_file = caseData.disposal_order_file;
+              changes.push({
+                field: 'disposal_order_file',
+                oldValue: '(empty)',
+                newValue: caseData.disposal_order_file
+              });
+            }
+
+            if (!existingCase.prayer && caseData.prayer) {
+              mergedCaseData.prayer = caseData.prayer;
+              changes.push({
+                field: 'prayer',
+                oldValue: '(empty)',
+                newValue: 'Added prayer'
+              });
             }
 
             // Update existing case with merged data

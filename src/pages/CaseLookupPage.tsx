@@ -120,16 +120,18 @@ export default function CaseLookupPage() {
 
     setSaving(true);
     try {
-      // Transform petitioners - ensure it's an array with s_no and name
+      // Transform petitioners - ensure it's an array with s_no, name, address
       const transformedPetitioners = Array.isArray(result.petitioners) ? (result.petitioners || []).map((p: any, idx: number) => ({
         s_no: idx + 1,
-        name: typeof p === 'string' ? p : (p.petName || p.name || '')
+        name: typeof p === 'string' ? p : (p.petName || p.name || ''),
+        address: typeof p === 'string' ? '' : (p.petAddress || p.address || '')
       })) : [];
 
-      // Transform respondents - ensure it's an array with r_no and name
+      // Transform respondents - ensure it's an array with r_no, name, address
       const transformedRespondents = Array.isArray(result.respondents) ? (result.respondents || []).map((r: any, idx: number) => ({
         r_no: idx + 1,
-        name: typeof r === 'string' ? r : (r.resName || r.name || '')
+        name: typeof r === 'string' ? r : (r.resName || r.name || ''),
+        address: typeof r === 'string' ? '' : (r.resAddress || r.address || '')
       })) : [];
 
       // Transform IA details to match CaseDetailsPage format - ensure it's always an array
@@ -141,7 +143,19 @@ export default function CaseLookupPage() {
         status: ia.status || '',
         prayer: ia.prayer || '',
         order_date: convertDateFormat(ia.orderDate) || '',
-        order: ia.order || ''
+        order: ia.order || '',
+        file_url: ia.fileURL || ''
+      })) : [];
+
+      // Transform IA SR details
+      const transformedIASRDetails = Array.isArray(result.iasr) ? (result.iasr || []).map((ia: any) => ({
+        ia_sr_no: ia.iasrNo || '',
+        paper_cd: ia.paperCd || '',
+        filing_date: convertDateFormat(ia.dateOfFiling) || '',
+        current_flag: ia.currentFlag || '',
+        adv_code: ia.advCode || '',
+        paper_type: ia.paperType || '',
+        adv_name: ia.advName || ''
       })) : [];
 
       // Transform USR details to match CaseDetailsPage format - ensure it's always an array
@@ -153,15 +167,34 @@ export default function CaseLookupPage() {
         remarks: usr.remarks || ''
       })) : [];
 
-      // Transform orders - ensure it's always an array
-      const transformedOrders = Array.isArray(result.orderdetails) ? (result.orderdetails || []).map((ord: any) => ({
-        order_on: ord.orderOn || '',
-        judge_name: ord.judge || '',
-        date: convertDateFormat(ord.dateOfOrders) || '',
-        type: ord.orderType || '',
-        details: ord.orderDetails || '',
-        file: ord.orderDetails ? `https://csis.tshc.gov.in/hcorders/${ord.orderDetails}` : ''
+      // Transform USR SR details (store as submission_dates payloads)
+      const transformedUSRSRDetails = Array.isArray(result.usrsr) ? (result.usrsr || []).map((usr: any, idx: number) => ({
+        submission_number: idx + 1,
+        submission_date: convertDateFormat(usr.usrsrDt) || '',
+        submitted_by: usr.advName || '',
+        filing_date: '',
+        due_date: '',
+        resubmission_date: '',
+        return_date: '',
+        return_taken_by: '',
+        changes_made: '',
+        changes_requested: usr.remarks || '',
+        changes_requested_by: usr.advCd ? String(usr.advCd) : '',
+        notes: usr.docName ? `USR SR ${usr.usrSrNum}: ${usr.docName}` : (usr.usrSrNum || '')
       })) : [];
+
+      // Transform orders - ensure it's always an array
+      const transformedOrders = Array.isArray(result.orderdetails) ? (result.orderdetails || []).map((ord: any) => {
+        const orderFile = ord.orderDetails ? `https://csis.tshc.gov.in/hcorders/${ord.orderDetails}` : '';
+        return {
+          order_on: ord.orderOn || '',
+          judge_name: ord.judge || '',
+          date: convertDateFormat(ord.dateOfOrders) || '',
+          type: ord.orderType || '',
+          details: orderFile || ord.orderDetails || '',
+          file: orderFile
+        };
+      }) : [];
 
       // Transform Connected Matters
       const transformedConnected = Array.isArray(result.connected) ? (result.connected || []).map((c: any) => {
@@ -169,7 +202,7 @@ export default function CaseLookupPage() {
         return { case_number: c.caseNumber || c.mainno || c };
       }) : [];
 
-      // Transform Lower Court Details
+      // Transform Lower Court Details (supports lowerCourt array and trail object)
       const transformedLowerCourt = Array.isArray(result.lowerCourt) ? (result.lowerCourt || []).map((lc: any) => ({
         court_name: lc.courtName || lc.court || '',
         district: lc.district || '',
@@ -177,6 +210,16 @@ export default function CaseLookupPage() {
         judge: lc.judgeName || lc.judge || '',
         judgement_date: convertDateFormat(lc.judgementDate || lc.dateOfJudgement) || ''
       })) : [];
+
+      if (result.trail) {
+        transformedLowerCourt.push({
+          court_name: result.trail.courtName || '',
+          district: result.trail.district || '',
+          case_no: result.trail.trialCourtCaseNumber || '',
+          judge: result.trail.judge || '',
+          judgement_date: convertDateFormat(result.trail.judgmentDate) || ''
+        });
+      }
 
       // Transform Vakalath
       // Note: API might return 'vakalath' or 'vakalathParams'
@@ -188,6 +231,10 @@ export default function CaseLookupPage() {
         remarks: v.remarks || '',
         file: v.link ? `https://csis.tshc.gov.in/${v.link}` : '' 
       })) : [];
+
+      const transformedCaseHistory = Array.isArray(result.casehistory) ? result.casehistory : [];
+
+      const fileUrl = result.primary?.fileURL ? `https://csis.tshc.gov.in/${String(result.primary.fileURL).replace(/^\/+/, '')}` : '';
 
       const caseData = {
         case_number: result.primary?.mainno || '',
@@ -213,11 +260,15 @@ export default function CaseLookupPage() {
         petitioners: transformedPetitioners,
         respondents: transformedRespondents,
         ia_details: transformedIADetails,
+        ia_sr_details: transformedIASRDetails,
         usr_details: transformedUSRDetails,
+        submission_dates: transformedUSRSRDetails,
         orders: transformedOrders,
         connected_matters: transformedConnected,
         lower_court_details: transformedLowerCourt,
         vakalath: transformedVakalath,
+        other_documents: transformedCaseHistory,
+        disposal_order_file: fileUrl || null,
         prayer: result.prayer?.prayer || '',
       };
 
@@ -269,11 +320,60 @@ export default function CaseLookupPage() {
           updates.push(`New USRs: Found ${newUSRCount - oldUSRCount} new USR(s)`);
         }
 
+        // Check for new IA SRs
+        const oldIASRCount = Array.isArray(existingCase.ia_sr_details) ? existingCase.ia_sr_details.length : 0;
+        const newIASRCount = caseData.ia_sr_details.length;
+        if (newIASRCount > oldIASRCount) {
+          updates.push(`New IA SRs: Found ${newIASRCount - oldIASRCount} new IA SR(s)`);
+        }
+
+        // Check for new USR SRs
+        const oldUSRSRCount = Array.isArray(existingCase.submission_dates) ? existingCase.submission_dates.length : 0;
+        const newUSRSRCount = caseData.submission_dates.length;
+        if (newUSRSRCount > oldUSRSRCount) {
+          updates.push(`New USR SRs: Found ${newUSRSRCount - oldUSRSRCount} new USR SR(s)`);
+        }
+
         // Check for new Vakalaths
         const oldVakalathCount = Array.isArray(existingCase.vakalath) ? existingCase.vakalath.length : 0;
         const newVakalathCount = caseData.vakalath.length;
         if (newVakalathCount > oldVakalathCount) {
           updates.push(`New Vakalaths: Found ${newVakalathCount - oldVakalathCount} new vakalath(s)`);
+        }
+
+        // Check for new Petitioners/Respondents
+        const oldPetCount = Array.isArray(existingCase.petitioners) ? existingCase.petitioners.length : 0;
+        const newPetCount = caseData.petitioners.length;
+        if (newPetCount > oldPetCount) {
+          updates.push(`New Petitioners: Found ${newPetCount - oldPetCount} new petitioner(s)`);
+        }
+
+        const oldResCount = Array.isArray(existingCase.respondents) ? existingCase.respondents.length : 0;
+        const newResCount = caseData.respondents.length;
+        if (newResCount > oldResCount) {
+          updates.push(`New Respondents: Found ${newResCount - oldResCount} new respondent(s)`);
+        }
+
+        // Check for new Lower Court details
+        const oldLCCount = Array.isArray(existingCase.lower_court_details) ? existingCase.lower_court_details.length : 0;
+        const newLCCount = caseData.lower_court_details.length;
+        if (newLCCount > oldLCCount) {
+          updates.push(`New Lower Court Details: Found ${newLCCount - oldLCCount} new record(s)`);
+        }
+
+        // Check for new case history entries
+        const oldHistoryCount = Array.isArray(existingCase.other_documents) ? existingCase.other_documents.length : 0;
+        const newHistoryCount = caseData.other_documents.length;
+        if (newHistoryCount > oldHistoryCount) {
+          updates.push(`New History Items: Found ${newHistoryCount - oldHistoryCount} new item(s)`);
+        }
+
+        if (!existingCase.disposal_order_file && caseData.disposal_order_file) {
+          updates.push('Disposal Order File: Added');
+        }
+
+        if (!existingCase.prayer && caseData.prayer) {
+          updates.push('Prayer: Added');
         }
 
         // ONLY update if there are actual changes
