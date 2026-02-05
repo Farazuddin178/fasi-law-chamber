@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import requests
+import re
 from requests.exceptions import SSLError, RequestException
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -96,322 +97,174 @@ def get_adv_report():
     except Exception as e:
         return jsonify({'error': 'Unexpected error', 'details': str(e)}), 500
 
-import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import time
-
 # ==========================================
-# TSHC SCRAPER - Undetected Chrome Version
+# TSHC SCRAPER - Requests Session Version
 # ==========================================
 
 class TSHCScraper:
-    """Scrapes TSHC using undetected-chromedriver (bypasses all protections)"""
-    
+    """Scrapes TSHC using requests session (no Selenium needed)"""
+
     def __init__(self):
-        self.base_url = "https://causelist.tshc.gov.in/advocateCodeCauseList"
-    
+        self.base_url = "https://causelist.tshc.gov.in"
+        self.form_url = f"{self.base_url}/advocateCodeCauseList"
+        self.result_url = f"{self.base_url}/advocateCodeWiseView"
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        })
+
     def fetch_data(self, advocate_code, date_str):
-        """
-        Fetch causelist data using undetected Chrome
-        Args:
-            advocate_code: e.g., "19272"
-            date_str: Format "DD-MM-YYYY"
-        """
-        driver = None
+        """Fetch causelist data using requests session"""
         try:
-            logging.info(f"[TSHC] Starting undetected Chrome for code: {advocate_code}, date: {date_str}")
-            
-            # Configure undetected Chrome
-            options = uc.ChromeOptions()
-            options.add_argument('--headless')
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--disable-gpu')
-            options.add_argument('--window-size=1920,1080')
-            
-            # Try to initialize with auto-detection
-            try:
-                driver = uc.Chrome(options=options)
-            except Exception as chrome_init_error:
-                if "version" in str(chrome_init_error).lower() or "session not created" in str(chrome_init_error).lower():
-                    logging.info("[TSHC] ChromeDriver version mismatch, trying with version 143...")
-                    
-                    # MUST create NEW options object - cannot reuse
-                    options2 = uc.ChromeOptions()
-                    options2.add_argument('--headless')
-                    options2.add_argument('--no-sandbox')
-                    options2.add_argument('--disable-dev-shm-usage')
-                    options2.add_argument('--disable-gpu')
-                    options2.add_argument('--window-size=1920,1080')
-                    
-                    driver = uc.Chrome(options=options2, version_main=143)
-                else:
-                    raise chrome_init_error
-            
-            logging.info("[TSHC] Browser initialized, loading page...")
-            driver.get(self.base_url)
-            time.sleep(5)  # Increased wait for slow TSHC servers
-            
-            logging.info(f"[TSHC] Page title: {driver.title}")
-            logging.info(f"[TSHC] Current URL: {driver.current_url}")
-            
-            # DEBUG: Save page source to see what's loaded
-            try:
-                with open('debug_page.html', 'w', encoding='utf-8') as f:
-                    f.write(driver.page_source)
-                logging.info("[TSHC] Saved page source to debug_page.html")
-            except:
-                pass
-            
-            # Take screenshot to see what's on page
-            try:
-                driver.save_screenshot('debug_screenshot.png')
-                logging.info("[TSHC] Saved screenshot to debug_screenshot.png")
-            except:
-                pass
-            
-            # Find all input elements to understand page structure
-            all_inputs = driver.find_elements(By.TAG_NAME, "input")
-            logging.info(f"[TSHC] Found {len(all_inputs)} input elements on page")
-            for i, inp in enumerate(all_inputs[:5]):  # Log first 5
-                name = inp.get_attribute('name') or 'N/A'
-                input_id = inp.get_attribute('id') or 'N/A'
-                input_type = inp.get_attribute('type') or 'N/A'
-                logging.info(f"[TSHC]   Input {i}: name={name}, id={input_id}, type={input_type}")
-            
-            # Try multiple strategies to find advocate input
-            adv_input = None
-            
-            # Strategy 1: By NAME
-            try:
-                adv_input = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.NAME, "advocateCode"))
-                )
-                logging.info("[TSHC] Found advocate input by NAME")
-            except:
-                pass
-            
-            # Strategy 2: By ID
-            if not adv_input:
-                try:
-                    adv_input = driver.find_element(By.ID, "advocateCode")
-                    logging.info("[TSHC] Found advocate input by ID")
-                except:
-                    pass
-            
-            # Strategy 3: By CSS selector
-            if not adv_input:
-                try:
-                    adv_input = driver.find_element(By.CSS_SELECTOR, "input[name='advocateCode']")
-                    logging.info("[TSHC] Found advocate input by CSS selector")
-                except:
-                    pass
-            
-            # Strategy 4: By placeholder text
-            if not adv_input:
-                try:
-                    inputs = driver.find_elements(By.TAG_NAME, "input")
-                    for inp in inputs:
-                        placeholder = inp.get_attribute('placeholder') or ''
-                        if 'advocate' in placeholder.lower() or 'code' in placeholder.lower():
-                            adv_input = inp
-                            logging.info(f"[TSHC] Found advocate input by placeholder: {placeholder}")
-                            break
-                except:
-                    pass
-            
-            # Strategy 5: First text input (last resort)
-            if not adv_input:
-                try:
-                    inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
-                    if inputs:
-                        adv_input = inputs[0]
-                        logging.info("[TSHC] Using first text input as advocate input")
-                except:
-                    pass
-            
-            if not adv_input:
-                return {
-                    "error": "Could not find advocate code input field. Check debug_screenshot.png to see what loaded.",
-                    "cases": [],
-                    "count": 0,
-                    "debug_info": f"Page title: {driver.title}, URL: {driver.current_url}",
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-            
-            # Fill advocate code
-            adv_input.clear()
-            adv_input.send_keys(str(advocate_code))
-            logging.info(f"[TSHC] Entered advocate code: {advocate_code}")
-            
-            # Find date input - try multiple strategies
-            date_input = None
-            
-            try:
-                date_input = driver.find_element(By.NAME, "causeListDate")
-                logging.info("[TSHC] Found date input by NAME")
-            except:
-                try:
-                    date_input = driver.find_element(By.ID, "causeListDate")
-                    logging.info("[TSHC] Found date input by ID")
-                except:
-                    # Look for date type input
-                    inputs = driver.find_elements(By.TAG_NAME, "input")
-                    for inp in inputs:
-                        if inp.get_attribute('type') == 'date':
-                            date_input = inp
-                            logging.info("[TSHC] Found date input by type='date'")
-                            break
-            
-            if date_input:
-                date_input.clear()
-                date_input.send_keys(date_str)
-                logging.info(f"[TSHC] Entered date: {date_str}")
-            else:
-                logging.warning("[TSHC] Could not find date input, proceeding without date")
-            
-            # Find and click submit
-            submit_clicked = False
-            
-            # Try input type submit
-            try:
-                submit_btn = driver.find_element(By.CSS_SELECTOR, "input[type='submit']")
-                submit_btn.click()
-                submit_clicked = True
-                logging.info("[TSHC] Clicked submit button (input)")
-            except:
-                pass
-            
-            # Try button type submit
-            if not submit_clicked:
-                try:
-                    submit_btn = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-                    submit_btn.click()
-                    submit_clicked = True
-                    logging.info("[TSHC] Clicked submit button (button)")
-                except:
-                    pass
-            
-            # Try by value/text
-            if not submit_clicked:
-                try:
-                    submit_btn = driver.find_element(By.XPATH, "//input[@value='Search' or @value='Submit' or @value='Go']")
-                    submit_btn.click()
-                    submit_clicked = True
-                    logging.info("[TSHC] Clicked submit by value")
-                except:
-                    pass
-            
-            # JavaScript fallback
-            if not submit_clicked:
-                try:
-                    driver.execute_script("""
-                        var forms = document.forms;
-                        if (forms.length > 0) forms[0].submit();
-                    """)
-                    logging.info("[TSHC] Submitted via JavaScript")
-                except Exception as e:
-                    logging.warning(f"[TSHC] JavaScript submit failed: {e}")
-            
-            logging.info("[TSHC] Waiting for results...")
-            time.sleep(6)  # Wait for results
-            
-            # Save result page for debugging
-            try:
-                with open('debug_result.html', 'w', encoding='utf-8') as f:
-                    f.write(driver.page_source)
-                driver.save_screenshot('debug_result.png')
-                logging.info("[TSHC] Saved result page for debugging")
-            except:
-                pass
-            
-            # Check for no records
-            try:
-                page_text = driver.find_element(By.TAG_NAME, "body").text.lower()
-                if any(phrase in page_text for phrase in ["no record", "not found", "no data", "no cases"]):
-                    logging.info("[TSHC] No records found")
-                    return {
-                        "cases": [],
-                        "count": 0,
-                        "message": "No cases found for this advocate on this date.",
-                        "method": "undetected-chromedriver",
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-            except:
-                pass
-            
-            # Parse results
-            html = driver.page_source
-            result = self._parse_html(html)
-            result['method'] = 'undetected-chromedriver'
+            logging.info(f"[TSHC] Starting scrape for code: {advocate_code}, date: {date_str}")
+
+            form_response = self.session.get(self.form_url, timeout=30, verify=False)
+            form_response.raise_for_status()
+
+            payload = {
+                'advocateCode': advocate_code,
+                'listDate': date_str
+            }
+            result_response = self.session.post(
+                self.result_url,
+                data=payload,
+                headers={
+                    'Referer': self.form_url,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                timeout=30,
+                verify=False
+            )
+            result_response.raise_for_status()
+
+            result = self._parse_html(result_response.text, advocate_code, date_str)
+            result['method'] = 'requests-session'
             result['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
             logging.info(f"[TSHC] Success: Found {result['count']} cases")
             return result
-            
+
+        except requests.RequestException as e:
+            logging.error(f"[TSHC] Request failed: {str(e)}")
+            return {
+                "error": f"Network error: {str(e)}",
+                "cases": [],
+                "count": 0,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
         except Exception as e:
-            logging.error(f"[TSHC] Error: {str(e)}")
-            # Save error state
-            if driver:
-                try:
-                    driver.save_screenshot('error_screenshot.png')
-                    with open('error_page.html', 'w', encoding='utf-8') as f:
-                        f.write(driver.page_source)
-                    logging.info("[TSHC] Saved error screenshots")
-                except:
-                    pass
+            logging.error(f"[TSHC] Unexpected error: {str(e)}")
             return {
                 "error": str(e),
                 "cases": [],
                 "count": 0,
-                "message": "Scraping failed. Check debug screenshots.",
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
-        finally:
-            if driver:
-                try:
-                    driver.quit()
-                except:
-                    pass
-    
-    def _parse_html(self, html):
-        """Parse HTML to extract case data"""
+
+    def _parse_html(self, html, code, date_str):
+        """Parse the results HTML based on TSHC structure"""
         soup = BeautifulSoup(html, 'html.parser')
         cases = []
-        
-        tables = soup.find_all('table')
-        logging.info(f"[TSHC Parser] Found {len(tables)} tables")
-        
-        for table_idx, table in enumerate(tables):
-            rows = table.find_all('tr')[1:]  # Skip header
-            
-            for row in rows:
-                cols = row.find_all(['td', 'th'])
-                if len(cols) >= 3:
-                    texts = [col.get_text(strip=True) for col in cols]
-                    case_no = texts[1] if len(texts) > 1 else ''
-                    
-                    # Validate case number
-                    if case_no and ('/' in case_no or any(c.isdigit() for c in case_no)):
-                        # Skip if header
-                        if any(x in case_no.lower() for x in ['case number', 's.no', 'sno']):
-                            continue
-                        
-                        cases.append({
-                            's_no': texts[0] if len(texts) > 0 else '',
-                            'case_number': case_no,
-                            'petitioner_advocate': texts[2] if len(texts) > 2 else '',
-                            'respondent_advocate': texts[3] if len(texts) > 3 else '',
-                            'court_no': texts[4] if len(texts) > 4 else '',
-                            'judge': texts[5] if len(texts) > 5 else '',
-                            'time': texts[6] if len(texts) > 6 else '',
-                            'list_type': texts[7] if len(texts) > 7 else ''
-                        })
-        
-        logging.info(f"[TSHC Parser] Extracted {len(cases)} cases")
-        return {"cases": cases, "count": len(cases)}
+
+        total_cases = 0
+        page_text = soup.get_text()
+        match = re.search(r'TOTAL CASES FOR\s+\d+\s*=\s*(\d+)', page_text)
+        if match:
+            total_cases = int(match.group(1))
+            logging.info(f"[TSHC] Total cases from header: {total_cases}")
+
+        tables = soup.find_all('table', {'id': 'dataTable'})
+        logging.info(f"[TSHC] Found {len(tables)} case tables")
+
+        current_court = None
+        current_judge = None
+        current_stage = None
+
+        for table in tables:
+            court_header = table.find_previous('thead')
+            if court_header:
+                court_div = court_header.find('div', string=re.compile(r'COURT NO\.'))
+                if court_div:
+                    current_court = court_div.get_text(strip=True)
+
+                judge_div = court_header.find('div', string=re.compile(r'THE HONOURABLE'))
+                if judge_div:
+                    current_judge = judge_div.get_text(strip=True)
+
+                list_type_div = court_header.find('div', style=re.compile(r'color:#c90d1f'))
+                if list_type_div:
+                    current_stage = list_type_div.get_text(strip=True)
+
+            tbodies = table.find_all('tbody')
+            for tbody in tbodies:
+                rows = tbody.find_all('tr')
+                for row in rows:
+                    stage_span = row.find('span', class_='stage-name')
+                    if stage_span:
+                        current_stage = stage_span.get_text(strip=True)
+                        continue
+
+                    cols = row.find_all('td')
+                    if len(cols) >= 6:
+                        s_no = cols[0].get_text(strip=True)
+
+                        case_col = cols[1]
+                        case_link = case_col.find('a', id='caseNumber')
+                        case_no = case_link.get_text(strip=True) if case_link else case_col.get_text(strip=True)
+
+                        connected_cases = []
+                        for div in case_col.find_all('div', {'data-case-id': True}):
+                            connected_cases.append(div.get_text(strip=True))
+
+                        party_col = cols[2]
+                        party_text = party_col.get_text(separator='\n', strip=True)
+                        party_lines = [line.strip() for line in party_text.split('\n') if line.strip()]
+
+                        petitioner = ''
+                        respondent = ''
+                        for i, line in enumerate(party_lines):
+                            if 'vs' in line.lower():
+                                petitioner = ' '.join(party_lines[:i])
+                                respondent = ' '.join(party_lines[i + 1:])
+                                break
+
+                        pet_adv = cols[3].get_text(strip=True)
+                        res_adv = cols[4].get_text(strip=True)
+
+                        district_col = cols[5]
+                        district_div = district_col.find('div', style=re.compile(r'color:#1e74cf'))
+                        district = district_div.get_text(strip=True) if district_div else district_col.get_text(strip=True)
+
+                        remarks_div = district_col.find('div', style=lambda x: x and 'color:#1e74cf' not in x)
+                        remarks = remarks_div.get_text(strip=True) if remarks_div else ''
+
+                        if case_no and '/' in case_no:
+                            cases.append({
+                                's_no': s_no,
+                                'case_no': case_no,
+                                'connected_cases': connected_cases,
+                                'petitioner': petitioner,
+                                'respondent': respondent,
+                                'petitioner_advocate': pet_adv,
+                                'respondent_advocate': res_adv,
+                                'district': district,
+                                'remarks': remarks,
+                                'court': current_court,
+                                'judge': current_judge,
+                                'stage': current_stage
+                            })
+
+        return {
+            'cases': cases,
+            'count': len(cases),
+            'total_cases_header': total_cases,
+            'advocate_code': code,
+            'date': date_str
+        }
 
 
 @app.route('/getDailyCauselist', methods=['GET'])

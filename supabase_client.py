@@ -106,6 +106,7 @@ class SupabaseClient:
                 'type': type_val,
                 'priority': priority,
                 'is_read': False,
+                'related_id': None,
                 # 'created_at' is handled by default or we can pass 'now()'
             }
             self.client.table('notifications').insert(data).execute()
