@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Search, Calendar, Gavel, Building2, User, MapPin, FileText, Clock, AlertCircle, Download, FileJson, Sheet, Save, RotateCcw, Trash2, Eye, FileDown } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 import { 
   Card, 
   CardContent, 
@@ -41,6 +43,12 @@ interface CauseListData {
   error: string | null
   timestamp: string
   note: string
+}
+
+interface SavedCauseList extends CauseListData {
+  id: string
+  saved_at: string
+  saved_by?: string | null
 }
 
 // Utility function to format date as DD-MM-YYYY
@@ -117,49 +125,68 @@ const downloadAsJSON = (data: CauseListData) => {
   toast.success('Cause list downloaded as JSON')
 }
 
-// Save causelist to localStorage
-const saveCauseListToStorage = (data: CauseListData) => {
+const CAUSELIST_TABLE = 'causelist_history'
+
+const loadSavedCauseLists = async (): Promise<SavedCauseList[]> => {
   try {
-    const savedData = localStorage.getItem('saved_causelists')
-    const existing = savedData ? JSON.parse(savedData) : {}
-    
-    const key = `${data.advocate_code}_${data.date}`
-    existing[key] = {
-      ...data,
-      saved_at: new Date().toISOString()
-    }
-    
-    localStorage.setItem('saved_causelists', JSON.stringify(existing))
-    toast.success(`Cause list saved for ${data.advocate_code} on ${data.date}`)
+    const { data, error } = await supabase
+      .from(CAUSELIST_TABLE)
+      .select('*')
+      .order('saved_at', { ascending: false })
+
+    if (error) throw error
+
+    return (data || []).map((row: any) => {
+      let cases = row.cases
+      if (typeof cases === 'string') {
+        try {
+          cases = JSON.parse(cases)
+        } catch {
+          cases = []
+        }
+      }
+
+      if (!Array.isArray(cases)) {
+        cases = []
+      }
+
+      return {
+        id: row.id,
+        advocate_code: row.advocate_code,
+        date: row.date,
+        total_cases: row.total_cases || cases.length,
+        cases,
+        success: true,
+        error: null,
+        timestamp: row.saved_at || new Date().toISOString(),
+        note: 'Saved cause list',
+        saved_at: row.saved_at || new Date().toISOString(),
+        saved_by: row.saved_by || null
+      }
+    })
   } catch (error) {
-    console.error('Error saving cause list:', error)
-    toast.error('Failed to save cause list')
+    console.error('Error loading saved cause lists:', error)
+    return []
   }
 }
 
-// Get saved causelists from localStorage
-const getSavedCauseLists = (): { [key: string]: CauseListData & { saved_at: string } } => {
-  try {
-    const savedData = localStorage.getItem('saved_causelists')
-    return savedData ? JSON.parse(savedData) : {}
-  } catch (error) {
-    console.error('Error reading saved cause lists:', error)
-    return {}
+const saveCauseListToDb = async (data: CauseListData, savedBy?: string | null) => {
+  const payload = {
+    advocate_code: data.advocate_code,
+    date: data.date,
+    total_cases: data.total_cases,
+    cases: data.cases,
+    saved_at: new Date().toISOString(),
+    saved_by: savedBy || null
   }
+
+  const { error } = await supabase.from(CAUSELIST_TABLE).insert(payload)
+  if (error) throw error
 }
 
-// Delete a saved causelist
-const deleteSavedCauseList = (key: string) => {
-  try {
-    const savedData = localStorage.getItem('saved_causelists')
-    const existing = savedData ? JSON.parse(savedData) : {}
-    delete existing[key]
-    localStorage.setItem('saved_causelists', JSON.stringify(existing))
-    toast.success('Cause list deleted')
-  } catch (error) {
-    console.error('Error deleting cause list:', error)
-    toast.error('Failed to delete cause list')
-  }
+const deleteSavedCauseList = async (id: string) => {
+  const { error } = await supabase.from(CAUSELIST_TABLE).delete().eq('id', id)
+  if (error) throw error
 }
 
 const buildHTMLContent = (data: CauseListData) => `
@@ -306,12 +333,18 @@ export default function DailyCauselistPage() {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<CauseListData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [savedCauseLists, setSavedCauseLists] = useState<{ [key: string]: CauseListData & { saved_at: string } }>({})
+  const [savedCauseLists, setSavedCauseLists] = useState<SavedCauseList[]>([])
   const [showSaved, setShowSaved] = useState(false)
+  const { user } = useAuth()
+  const userId = (user as any)?.id ?? (user as any)?.user_id ?? (user as any)?.uid ?? null
   
   // Auto-fetch on mount
   useEffect(() => {
-    setSavedCauseLists(getSavedCauseLists())
+    const loadSaved = async () => {
+      const saved = await loadSavedCauseLists()
+      setSavedCauseLists(saved)
+    }
+    loadSaved()
 
     // Load initial data if we have advocate code
     if (advocateCode.trim()) {
@@ -608,9 +641,16 @@ export default function DailyCauselistPage() {
                         <span className="font-semibold text-gray-900">Save for Later:</span>
                       </div>
                       <Button
-                        onClick={() => {
-                          saveCauseListToStorage(data)
-                          setSavedCauseLists(getSavedCauseLists())
+                        onClick={async () => {
+                          try {
+                            await saveCauseListToDb(data, userId)
+                            const saved = await loadSavedCauseLists()
+                            setSavedCauseLists(saved)
+                            toast.success(`Cause list saved for ${data.advocate_code} on ${data.date}`)
+                          } catch (saveError: any) {
+                            console.error('Error saving cause list:', saveError)
+                            toast.error(saveError?.message || 'Failed to save cause list')
+                          }
                         }}
                         className="bg-green-600 hover:bg-green-700 text-white"
                       >
@@ -774,16 +814,16 @@ export default function DailyCauselistPage() {
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Eye className="w-4 h-4 mr-2" />
-              {showSaved ? 'Hide' : 'Show'} Saved ({Object.keys(savedCauseLists).length})
+              {showSaved ? 'Hide' : 'Show'} Saved ({savedCauseLists.length})
             </Button>
           </div>
 
           {showSaved && (
             <>
-              {Object.keys(savedCauseLists).length > 0 ? (
+              {savedCauseLists.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Object.entries(savedCauseLists).map(([key, savedData]) => (
-                    <Card key={key} className="border-0 shadow-md hover:shadow-lg transition-shadow">
+                  {savedCauseLists.map((savedData) => (
+                    <Card key={savedData.id} className="border-0 shadow-md hover:shadow-lg transition-shadow">
                       <CardContent className="pt-6">
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1">
@@ -832,9 +872,16 @@ export default function DailyCauselistPage() {
                             PDF
                           </Button>
                           <Button
-                            onClick={() => {
-                              deleteSavedCauseList(key)
-                              setSavedCauseLists(getSavedCauseLists())
+                            onClick={async () => {
+                              try {
+                                await deleteSavedCauseList(savedData.id)
+                                const saved = await loadSavedCauseLists()
+                                setSavedCauseLists(saved)
+                                toast.success('Cause list deleted')
+                              } catch (deleteError: any) {
+                                console.error('Error deleting cause list:', deleteError)
+                                toast.error(deleteError?.message || 'Failed to delete cause list')
+                              }
                             }}
                             size="sm"
                             variant="outline"
