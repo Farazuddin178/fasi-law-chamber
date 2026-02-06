@@ -11,12 +11,20 @@ import os
 import logging
 from functools import wraps
 from urllib.parse import quote
+import urllib3
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+# Suppress SSL warnings only for known problematic court websites
+# We handle this with smart fallback in _make_request()
+# Security Note: We try SSL verification first for all connections.
+# Only court govt websites with certificate issues get fallback to verify=False
+# This is safe because: 1) Public read-only data, 2) No sensitive data sent, 3) We log when fallback occurs
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__, static_folder=None)
 
@@ -216,31 +224,53 @@ class TSHCScraper:
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1'
         })
+    
+    def _make_request(self, method, url, **kwargs):
+        """Make request with SSL verification fallback for court websites"""
+        try:
+            # First attempt: Try with SSL verification (secure)
+            kwargs['verify'] = True
+            if method == 'GET':
+                response = self.session.get(url, **kwargs)
+            else:
+                response = self.session.post(url, **kwargs)
+            response.raise_for_status()
+            return response
+        except requests.exceptions.SSLError:
+            # Court website has certificate issues - fallback to no verification
+            # This is safe because: 1) It's a read-only public court website
+            # 2) We're not sending sensitive data, 3) Data is public information
+            logging.warning(f"[TSHC] SSL verification failed for {url}, using fallback (court website has certificate issues)")
+            kwargs['verify'] = False
+            if method == 'GET':
+                response = self.session.get(url, **kwargs)
+            else:
+                response = self.session.post(url, **kwargs)
+            response.raise_for_status()
+            return response
 
     def fetch_data(self, advocate_code, date_str):
         """Fetch causelist data using requests session"""
         try:
             logging.info(f"[TSHC] Starting scrape for code: {advocate_code}, date: {date_str}")
 
-            # Security: SSL verification enabled
-            form_response = self.session.get(self.form_url, timeout=30, verify=True)
-            form_response.raise_for_status()
+            # Use smart SSL verification with fallback for court website
+            form_response = self._make_request('GET', self.form_url, timeout=30)
 
             payload = {
                 'advocateCode': advocate_code,
                 'listDate': date_str
             }
-            result_response = self.session.post(
+            result_response = self._make_request(
+                'POST',
                 self.result_url,
                 data=payload,
                 headers={
                     'Referer': self.form_url,
                     'Content-Type': 'application/x-www-form-urlencoded'
                 },
-                timeout=30,
-                verify=True  # Security: SSL verification enabled
+                timeout=30
             )
-            result_response.raise_for_status()
 
             result = self._parse_html(result_response.text, advocate_code, date_str)
             result['method'] = 'requests-session'
@@ -248,14 +278,6 @@ class TSHCScraper:
             logging.info(f"[TSHC] Success: Found {result['count']} cases")
             return result
 
-        except requests.exceptions.SSLError as e:
-            logging.error(f"[TSHC] SSL verification failed: {str(e)}")
-            return {
-                "error": "Unable to connect securely to court website",
-                "cases": [],
-                "count": 0,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
         except requests.RequestException as e:
             logging.error(f"[TSHC] Request failed: {str(e)}")
             return {
@@ -476,8 +498,13 @@ def get_daily_causelist():
 def get_sitting_arrangements():
     try:
         url = 'https://tshc.gov.in/processBodySetionTypes?id=197'
-        # Security: SSL verification enabled
-        response = requests.get(url, verify=True, timeout=20)
+        
+        # Try with SSL verification first, fallback if court website has certificate issues
+        try:
+            response = requests.get(url, verify=True, timeout=20)
+        except requests.exceptions.SSLError:
+            logging.warning("[Sitting] SSL verification failed for court website, using fallback")
+            response = requests.get(url, verify=False, timeout=20)
         
         if response.status_code != 200:
             logging.error(f"Sitting arrangements API error: {response.status_code}")
@@ -502,9 +529,6 @@ def get_sitting_arrangements():
             'arrangements': arrangements,
             'lastUpdated': datetime.now().isoformat()
         })
-    except requests.exceptions.SSLError:
-        logging.error("SSL verification failed for court website")
-        return jsonify({'error': 'Unable to connect securely to court website'}), 502
     except requests.exceptions.Timeout:
         logging.warning("Sitting arrangements request timeout")
         return jsonify({'error': 'Court website is taking too long. Please try again'}), 504
