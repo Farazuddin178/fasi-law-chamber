@@ -59,13 +59,21 @@ const formatDateToDDMMYYYY = (date: Date): string => {
   return `${day}-${month}-${year}`
 }
 
-// Utility function to parse DD-MM-YYYY to Date
+// Utility function to parse DD-MM-YYYY to Date (in local timezone)
 const parseDateFromDDMMYYYY = (dateStr: string): Date | null => {
   const parts = dateStr.split('-')
   if (parts.length !== 3) return null
   const [day, month, year] = parts.map(p => parseInt(p, 10))
   if (isNaN(day) || isNaN(month) || isNaN(year)) return null
+  // Create date in local timezone (not UTC)
   return new Date(year, month - 1, day)
+}
+
+// Convert YYYY-MM-DD string to DD-MM-YYYY (handles timezone correctly)
+const convertDateInputToLocal = (dateString: string): string => {
+  const [year, month, day] = dateString.split('-').map(Number)
+  const selectedDate = new Date(year, month - 1, day) // Local time, not UTC
+  return formatDateToDDMMYYYY(selectedDate)
 }
 
 // Download as CSV
@@ -412,16 +420,16 @@ export default function DailyCauselistPage() {
         const partyDetails = item.party_details || (petitioner || respondent ? `${petitioner}${petitioner && respondent ? ' vs ' : ''}${respondent}` : '')
 
         return {
-          court_no: item.court_no || item.court || '',
+          court_no: item.court || item.court_no || '',
           judge: item.judge || '',
           date: item.date || causeDate,
           time: item.time || '',
-          list_type: item.list_type || item.stage || '',
-          sl_no: item.sl_no || item.s_no || '',
-          case_number: item.case_number || item.case_no || '',
+          list_type: item.stage || item.list_type || '',
+          sl_no: item.s_no || item.sl_no || '',
+          case_number: item.case_no || item.case_number || '',
           ia: item.ia || (Array.isArray(item.connected_cases) ? item.connected_cases.join(', ') : ''),
-          petitioner_advocate: item.petitioner_advocate || '',
-          respondent_advocate: item.respondent_advocate || '',
+          petitioner_advocate: item.petitioner_advocate || item.petitionerAdvocate || '',
+          respondent_advocate: item.respondent_advocate || item.respondentAdvocate || '',
           party_details: partyDetails,
           district: item.district || '',
           remarks: item.remarks || '',
@@ -504,8 +512,9 @@ export default function DailyCauselistPage() {
                   value={parseDateFromDDMMYYYY(causeDate)?.toISOString().split('T')[0] || ''}
                   onChange={(e) => {
                     if (e.target.value) {
-                      const selectedDate = new Date(e.target.value)
-                      setCauseDate(formatDateToDDMMYYYY(selectedDate))
+                      // Parse YYYY-MM-DD as local date (not UTC)
+                      const newDate = convertDateInputToLocal(e.target.value)
+                      setCauseDate(newDate)
                     }
                   }}
                   className="w-full"
