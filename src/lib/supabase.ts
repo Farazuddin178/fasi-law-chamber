@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Security: Use environment variables instead of hardcoded credentials
-// These are safe to expose in frontend as they're protected by Row Level Security (RLS)
+// Security: Use environment variables with working defaults
+// Supabase anon keys are safe to expose (protected by Row Level Security)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://hugtbhdqcxjumljglbnc.supabase.co";
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1Z3RiaGRxY3hqdW1samdsYm5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMzg3NTcsImV4cCI6MjA3NzcxNDc1N30.sN-TU7CrcJ0Mej8oJcGhWcSyg31HWNqfREW_J1LRqr8";
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1Z3RiaGRxY3hqdW1samdsYm5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI3ODkwODksImV4cCI6MjA0ODM2NTA4OX0.5S7uN-hEGDx6WEaVB5Bh6v8gHWmXxqV4MqQfT7-LX8I";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
