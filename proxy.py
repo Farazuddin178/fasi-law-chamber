@@ -236,10 +236,7 @@ class TSHCScraper:
                 response = self.session.post(url, **kwargs)
             response.raise_for_status()
             return response
-        except requests.exceptions.SSLError:
-            # Court website has certificate issues - fallback to no verification
-            # This is safe because: 1) It's a read-only public court website
-            # 2) We're not sending sensitive data, 3) Data is public information
+        except (requests.exceptions.SSLError, requests.exceptions.ConnectionError) as e:
             logging.warning(f"[TSHC] SSL verification failed for {url}, using fallback (court website has certificate issues)")
             kwargs['verify'] = False
             if method == 'GET':
