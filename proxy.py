@@ -9,6 +9,8 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import os
 import logging
+from functools import wraps
+from urllib.parse import quote
 
 # Configure logging
 logging.basicConfig(
@@ -17,7 +19,25 @@ logging.basicConfig(
 )
 
 app = Flask(__name__, static_folder=None)
-CORS(app)
+
+# Security: Configure CORS with specific origins (update with your production domain)
+allowed_origins = os.getenv('ALLOWED_ORIGINS', '*').split(',')
+if allowed_origins == ['*']:
+    # Development mode - allow all origins
+    CORS(app)
+else:
+    # Production mode - restrict to specific origins
+    CORS(app, resources={
+        r"/*": {
+            "origins": allowed_origins,
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True
+        }
+    })
+
+# Security: Set maximum request size to prevent DoS attacks
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB limit
 
 # Import notification routes and cron service
 try:
@@ -36,8 +56,39 @@ except ImportError as e:
 except Exception as e:
     logging.error(f"Failed to initialize notification system: {e}")
 
-# Suppress insecure request warnings for verify=False usage on the HC site
-requests.packages.urllib3.disable_warnings()
+# Security: Add security headers to all responses
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
+
+# Security: Input validation helper
+def validate_case_params(mtype, mno, myear):
+    """Validate case detail parameters"""
+    if not mtype or not re.match(r'^[A-Z]{2,10}$', mtype):
+        return False, 'Invalid case type format'
+    if not mno or not re.match(r'^\d{1,10}$', mno):
+        return False, 'Invalid case number format'
+    if not myear or not re.match(r'^\d{4}$', myear):
+        return False, 'Invalid year format'
+    return True, None
+
+def validate_advocate_code(code):
+    """Validate advocate code"""
+    if not code or not re.match(r'^\d{1,10}$', code):
+        return False, 'Invalid advocate code format'
+    return True, None
+
+def validate_date(date_str):
+    """Validate date format DD-MM-YYYY"""
+    if not date_str:
+        return True, None  # Optional parameter
+    if not re.match(r'^\d{2}-\d{2}-\d{4}$', date_str):
+        return False, 'Invalid date format. Use DD-MM-YYYY'
+    return True, None
 
 @app.route('/ping', methods=['GET'])
 def ping():
@@ -47,57 +98,93 @@ def ping():
 @app.route('/getCaseDetails', methods=['GET'])
 def get_case_details():
     try:
-        mtype = request.args.get('mtype')
-        mno = request.args.get('mno')
-        myear = request.args.get('myear')
+        mtype = request.args.get('mtype', '').strip()
+        mno = request.args.get('mno', '').strip()
+        myear = request.args.get('myear', '').strip()
         
         if not all([mtype, mno, myear]):
             return jsonify({'error': 'Missing parameters: mtype, mno, myear required'}), 400
         
-        url = f'https://csis.tshc.gov.in/getCaseDetails?mtype={mtype}&mno={mno}&myear={myear}'
-        # Increased timeout to 60 seconds for slow external APIs
-        response = requests.get(url, timeout=60, verify=False)
+        # Security: Validate input parameters
+        valid, error_msg = validate_case_params(mtype, mno, myear)
+        if not valid:
+            logging.warning(f"Invalid params: {error_msg}")
+            return jsonify({'error': error_msg}), 400
+        
+        # Security: URL encode parameters to prevent injection
+        url = f'https://csis.tshc.gov.in/getCaseDetails?mtype={quote(mtype)}&mno={quote(mno)}&myear={quote(myear)}'
+        
+        # Security: SSL verification enabled (removed verify=False)
+        response = requests.get(url, timeout=60, verify=True)
         
         if response.status_code != 200:
-            return jsonify({'error': f'External API returned {response.status_code}'}), 502
+            logging.error(f"External API error: {response.status_code}")
+            return jsonify({'error': 'Unable to fetch case details from court server'}), 502
         
         data = response.json()
         return jsonify(data)
+    except requests.exceptions.SSLError:
+        logging.error("SSL verification failed for court API")
+        return jsonify({'error': 'Unable to connect securely to court server'}), 502
     except requests.exceptions.Timeout:
-        return jsonify({'error': 'External API is slow - please try again'}), 504
+        logging.warning("External API timeout")
+        return jsonify({'error': 'Court server is taking too long to respond. Please try again'}), 504
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': 'Unable to fetch case details', 'details': str(e)}), 502
-    except ValueError as e:
-        return jsonify({'error': 'Invalid JSON response from external API', 'details': str(e)}), 502
+        logging.error(f"Request error: {str(e)}")
+        return jsonify({'error': 'Unable to connect to court server'}), 502
+    except ValueError:
+        logging.error("Invalid JSON from court API")
+        return jsonify({'error': 'Invalid response from court server'}), 502
     except Exception as e:
-        return jsonify({'error': 'Unexpected error', 'details': str(e)}), 500
+        logging.error(f"Unexpected error: {str(e)}", exc_info=True)
+        return jsonify({'error': 'An error occurred. Please try again later'}), 500
 
 @app.route('/getAdvReport', methods=['GET'])
 def get_adv_report():
     try:
-        advcode = request.args.get('advcode')
-        year = request.args.get('year')
+        advcode = request.args.get('advcode', '').strip()
+        year = request.args.get('year', '').strip()
         
         if not advcode or not year:
             return jsonify({'error': 'Missing parameters: advcode and year required'}), 400
         
-        url = f'https://csis.tshc.gov.in/getAdvReport?advcode={advcode}&year={year}'
-        # Increased timeout to 60 seconds for slow external APIs
-        response = requests.get(url, timeout=60, verify=False)
+        # Security: Validate advocate code
+        valid, error_msg = validate_advocate_code(advcode)
+        if not valid:
+            logging.warning(f"Invalid advocate code: {error_msg}")
+            return jsonify({'error': error_msg}), 400
+        
+        # Validate year
+        if not re.match(r'^\d{4}$', year):
+            return jsonify({'error': 'Invalid year format'}), 400
+        
+        # Security: URL encode parameters
+        url = f'https://csis.tshc.gov.in/getAdvReport?advcode={quote(advcode)}&year={quote(year)}'
+        
+        # Security: SSL verification enabled
+        response = requests.get(url, timeout=60, verify=True)
         
         if response.status_code != 200:
-            return jsonify({'error': f'External API returned {response.status_code}'}), 502
+            logging.error(f"External API error: {response.status_code}")
+            return jsonify({'error': 'Unable to fetch advocate report from court server'}), 502
         
         data = response.json()
         return jsonify(data)
+    except requests.exceptions.SSLError:
+        logging.error("SSL verification failed for court API")
+        return jsonify({'error': 'Unable to connect securely to court server'}), 502
     except requests.exceptions.Timeout:
-        return jsonify({'error': 'External API is slow - please try again'}), 504
+        logging.warning("External API timeout")
+        return jsonify({'error': 'Court server is taking too long. Please try again'}), 504
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': 'Unable to fetch advocate report', 'details': str(e)}), 502
-    except ValueError as e:
-        return jsonify({'error': 'Invalid JSON response from external API', 'details': str(e)}), 502
+        logging.error(f"Request error: {str(e)}")
+        return jsonify({'error': 'Unable to connect to court server'}), 502
+    except ValueError:
+        logging.error("Invalid JSON from court API")
+        return jsonify({'error': 'Invalid response from court server'}), 502
     except Exception as e:
-        return jsonify({'error': 'Unexpected error', 'details': str(e)}), 500
+        logging.error(f"Unexpected error: {str(e)}", exc_info=True)
+        return jsonify({'error': 'An error occurred. Please try again later'}), 500
 
 # ==========================================
 # TSHC SCRAPER - Requests Session Version
@@ -135,7 +222,8 @@ class TSHCScraper:
         try:
             logging.info(f"[TSHC] Starting scrape for code: {advocate_code}, date: {date_str}")
 
-            form_response = self.session.get(self.form_url, timeout=30, verify=False)
+            # Security: SSL verification enabled
+            form_response = self.session.get(self.form_url, timeout=30, verify=True)
             form_response.raise_for_status()
 
             payload = {
@@ -150,7 +238,7 @@ class TSHCScraper:
                     'Content-Type': 'application/x-www-form-urlencoded'
                 },
                 timeout=30,
-                verify=False
+                verify=True  # Security: SSL verification enabled
             )
             result_response.raise_for_status()
 
@@ -160,18 +248,26 @@ class TSHCScraper:
             logging.info(f"[TSHC] Success: Found {result['count']} cases")
             return result
 
+        except requests.exceptions.SSLError as e:
+            logging.error(f"[TSHC] SSL verification failed: {str(e)}")
+            return {
+                "error": "Unable to connect securely to court website",
+                "cases": [],
+                "count": 0,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
         except requests.RequestException as e:
             logging.error(f"[TSHC] Request failed: {str(e)}")
             return {
-                "error": f"Network error: {str(e)}",
+                "error": "Unable to connect to court website",
                 "cases": [],
                 "count": 0,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
         except Exception as e:
-            logging.error(f"[TSHC] Unexpected error: {str(e)}")
+            logging.error(f"[TSHC] Unexpected error: {str(e)}", exc_info=True)
             return {
-                "error": str(e),
+                "error": "An error occurred while fetching data",
                 "cases": [],
                 "count": 0,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -293,11 +389,11 @@ def get_daily_causelist():
     """
     try:
         advocate_code = request.args.get('advocateCode', '').strip()
-        list_date = request.args.get('listDate', '')
+        list_date = request.args.get('listDate', '').strip()
         
         logging.info(f"[API] /getDailyCauselist request - code={advocate_code}, date={list_date}")
         
-        # Validate advocate code
+        # Security: Validate advocate code
         if not advocate_code:
             logging.warning("[API] Missing advocateCode parameter")
             return jsonify({
@@ -305,19 +401,23 @@ def get_daily_causelist():
                 'example': '/getDailyCauselist?advocateCode=19272&listDate=05-02-2026'
             }), 400
         
+        valid, error_msg = validate_advocate_code(advocate_code)
+        if not valid:
+            logging.warning(f"[API] Invalid advocate code: {error_msg}")
+            return jsonify({'error': error_msg}), 400
+        
         # Use provided date or default to today
         if not list_date:
             today = datetime.now()
             list_date = today.strftime("%d-%m-%Y")
             logging.info(f"[API] No date provided, using today: {list_date}")
         
-        # Validate date format
-        try:
-            datetime.strptime(list_date, "%d-%m-%Y")
-        except ValueError:
+        # Security: Validate date format
+        valid, error_msg = validate_date(list_date)
+        if not valid:
             logging.warning(f"[API] Invalid date format: {list_date}")
             return jsonify({
-                'error': 'Invalid date format. Use DD-MM-YYYY',
+                'error': error_msg,
                 'example': '05-02-2026'
             }), 400
         
@@ -331,7 +431,7 @@ def get_daily_causelist():
         if not isinstance(result, dict):
             logging.error(f"[API] Scraper returned invalid type: {type(result)}")
             return jsonify({
-                'error': 'Invalid response from scraper',
+                'error': 'Invalid response format',
                 'cases': [],
                 'count': 0
             }), 500
@@ -365,8 +465,7 @@ def get_daily_causelist():
     except Exception as e:
         logging.error(f"[API] Unexpected error: {str(e)}", exc_info=True)
         return jsonify({
-            'error': 'Unexpected error',
-            'details': str(e),
+            'error': 'An error occurred. Please try again later',
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'cases': [],
             'count': 0
@@ -377,10 +476,12 @@ def get_daily_causelist():
 def get_sitting_arrangements():
     try:
         url = 'https://tshc.gov.in/processBodySetionTypes?id=197'
-        response = requests.get(url, verify=False, timeout=20)
+        # Security: SSL verification enabled
+        response = requests.get(url, verify=True, timeout=20)
         
         if response.status_code != 200:
-            return jsonify({'error': f'External API returned {response.status_code}'}), 502
+            logging.error(f"Sitting arrangements API error: {response.status_code}")
+            return jsonify({'error': 'Unable to fetch sitting arrangements from court website'}), 502
         
         soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -401,12 +502,18 @@ def get_sitting_arrangements():
             'arrangements': arrangements,
             'lastUpdated': datetime.now().isoformat()
         })
+    except requests.exceptions.SSLError:
+        logging.error("SSL verification failed for court website")
+        return jsonify({'error': 'Unable to connect securely to court website'}), 502
     except requests.exceptions.Timeout:
-        return jsonify({'error': 'Request timeout - try again'}), 504
+        logging.warning("Sitting arrangements request timeout")
+        return jsonify({'error': 'Court website is taking too long. Please try again'}), 504
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': 'Unable to fetch sitting arrangements', 'details': str(e)}), 502
+        logging.error(f"Request error: {str(e)}")
+        return jsonify({'error': 'Unable to connect to court website'}), 502
     except Exception as e:
-        return jsonify({'error': 'Unexpected error', 'details': str(e)}), 500
+        logging.error(f"Unexpected error: {str(e)}", exc_info=True)
+        return jsonify({'error': 'An error occurred. Please try again later'}), 500
 
 # Catch-all route for React app (must be last)
 @app.route('/', defaults={'path': ''})
