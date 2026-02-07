@@ -73,17 +73,38 @@ export default function CasesPage() {
   const loadCases = async () => {
     setLoading(true);
     try {
-      // Fetch ALL cases by setting a very high limit
-      // Supabase default is 1000, we set 10000 to get all cases
-      const { data, error } = await supabase
-        .from('cases')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10000);
+      // Supabase has a default limit of 1000, we need pagination to get all cases
+      let allCases: Case[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
 
-      if (error) throw error;
-      setCases(data || []);
-      console.log(`Loaded ${data?.length || 0} cases from database`);
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data, error } = await supabase
+          .from('cases')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          hasMore = false;
+        } else {
+          allCases = [...allCases, ...data];
+          // If we got less than pageSize, no more pages
+          if (data.length < pageSize) {
+            hasMore = false;
+          }
+          page++;
+        }
+      }
+
+      setCases(allCases);
+      console.log(`Loaded ${allCases.length} cases total from database`);
     } catch (error: any) {
       toast.error(error.message || 'Failed to load cases');
     } finally {
