@@ -310,6 +310,43 @@ export default function AdvocateReportPage() {
     };
   };
 
+  const buildCaseDataFromDetails = (result: any, transformed: any) => {
+    return {
+      case_number: result.primary?.mainno || '',
+      sr_number: result.primary?.srno || '',
+      cnr: result.primary?.cnrno || '',
+      primary_petitioner: result.primary?.petitioner || '',
+      primary_respondent: result.primary?.respondent || '',
+      petitioner_adv: result.primary?.petitioneradv || '',
+      respondent_adv: result.primary?.respondentadv || '',
+      category: result.category?.category || result.primary?.casecategory || '',
+      sub_category: result.category?.subCategory || '',
+      sub_sub_category: result.category?.subSubCategory || '',
+      district: result.primary?.district || '',
+      filing_date: convertDateFormat(result.primary?.filingdate),
+      registration_date: convertDateFormat(result.primary?.registrationdate),
+      listing_date: convertDateFormat(result.primary?.listingdate),
+      disp_date: convertDateFormat(result.primary?.disposaldate),
+      disp_type: result.primary?.disposaltype && result.primary.disposaltype !== '-' ? result.primary.disposaltype : null,
+      purpose: result.primary?.purpose || '',
+      jud_name: result.primary?.judges || '',
+      status: (result.primary?.casestatus === 'PENDING' ? 'pending' :
+              result.primary?.casestatus === 'DISPOSED' ? 'disposed' : 'pending') as 'pending' | 'filed' | 'disposed' | 'closed',
+      petitioners: transformed.transformedPetitioners || [],
+      respondents: transformed.transformedRespondents || [],
+      ia_details: transformed.transformedIADetails || [],
+      ia_sr_details: transformed.transformedIASRDetails || [],
+      usr_details: transformed.transformedUSRDetails || [],
+      submission_dates: transformed.transformedUSRSRDetails || [],
+      orders: transformed.transformedOrders || [],
+      connected_matters: transformed.transformedConnectedMatters || [],
+      lower_court_details: transformed.transformedLowerCourt || [],
+      vakalath: transformed.transformedVakalath || [],
+      other_documents: transformed.transformedCaseHistory || [],
+      prayer: result.prayer?.prayer || ''
+    };
+  };
+
   const bulkAddAllCases = async () => {
     if (!report || !report.caseDetails || report.caseDetails.length === 0) {
       toast.error('No cases to add');
@@ -400,7 +437,7 @@ export default function AdvocateReportPage() {
           const fileUrlRaw = rawCase.fileURL || fullDetails?.primary?.fileURL || '';
           const fileUrl = fileUrlRaw ? `https://csis.tshc.gov.in/${String(fileUrlRaw).replace(/^\/+/, '')}` : null;
 
-          const caseData: Partial<Case> = {
+          let caseData: Partial<Case> = {
             case_number: normalizedCaseNumber,
             sr_number: advCase.srNumber || rawCase.sr_no || rawCase.srNumber || rawCase.sr_number || null,
             cnr: rawCase.cnr || rawCase.cnrNo || rawCase.cnrno || null,
@@ -437,6 +474,24 @@ export default function AdvocateReportPage() {
             prayer: rawCase.prayer || fullDetails?.prayer?.prayer || null,
             created_by: userId, // Use userId directly - database.ts handles fallback
           };
+
+          if (isNumbered && fullDetails) {
+            const fullCaseData = buildCaseDataFromDetails(fullDetails, transformed);
+            caseData = {
+              ...caseData,
+              ...fullCaseData,
+              case_number: fullCaseData.case_number || normalizedCaseNumber,
+              sr_number: fullCaseData.sr_number || caseData.sr_number,
+              created_by: userId
+            };
+
+            if (!fullCaseData.petitioners?.length && caseData.primary_petitioner) {
+              caseData.petitioners = [{ s_no: 1, name: caseData.primary_petitioner }];
+            }
+            if (!fullCaseData.respondents?.length && caseData.primary_respondent) {
+              caseData.respondents = [{ r_no: 1, name: caseData.primary_respondent }];
+            }
+          }
           // Log the extracted data for debugging
           console.log('Extracted case data:', caseData);
 

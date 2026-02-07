@@ -4,6 +4,8 @@ Handles hearing reminders, notifications, etc.
 """
 from datetime import datetime, timedelta
 import logging
+import os
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,25 @@ class CronJobService:
             logger.info("Scheduled: Daily hearing reminders at 8:00 AM")
         except Exception as e:
             logger.error(f"Failed to schedule jobs: {e}")
+
+        # Daily causelist save
+        advocate_code = os.getenv('CAUSELIST_ADVOCATE_CODE', '').strip()
+        save_hour = int(os.getenv('CAUSELIST_SAVE_HOUR', '6'))
+        save_minute = int(os.getenv('CAUSELIST_SAVE_MINUTE', '0'))
+        if advocate_code:
+            try:
+                self.scheduler.add_job(
+                    self.save_daily_causelist,
+                    CronTrigger(hour=save_hour, minute=save_minute),
+                    id='daily_causelist_save',
+                    name='Daily Causelist Save',
+                    replace_existing=True
+                )
+                logger.info(f"Scheduled: Daily causelist save at {save_hour:02d}:{save_minute:02d}")
+            except Exception as e:
+                logger.error(f"Failed to schedule daily causelist save: {e}")
+        else:
+            logger.warning("CAUSELIST_ADVOCATE_CODE not set - daily causelist save disabled")
         
         # You can add more jobs here
         # Example: Weekly reports every Monday at 9 AM
@@ -122,6 +143,50 @@ class CronJobService:
             
         except Exception as e:
             logger.error(f"Daily hearing reminder job failed: {e}")
+
+    def save_daily_causelist(self):
+        """Fetch and save daily causelist to causelist_history"""
+        try:
+            if not supabase_client:
+                logger.warning("Supabase client not available - cannot save causelist")
+                return
+
+            advocate_code = os.getenv('CAUSELIST_ADVOCATE_CODE', '').strip()
+            if not advocate_code:
+                logger.warning("CAUSELIST_ADVOCATE_CODE not set - skipping causelist save")
+                return
+
+            date_str = datetime.now().strftime('%d-%m-%Y')
+            existing = supabase_client.get_causelist_history(advocate_code, date_str)
+            if existing:
+                logger.info("Causelist already saved for today")
+                return
+
+            base_url = os.getenv('APP_URL', 'http://127.0.0.1:10000').rstrip('/')
+            api_url = f"{base_url}/getDailyCauselist?advocateCode={advocate_code}&listDate={date_str}"
+
+            logger.info(f"Fetching causelist: {api_url}")
+            response = requests.get(api_url, timeout=60, verify=False)
+            response.raise_for_status()
+            result = response.json()
+
+            cases = result.get('cases', []) if isinstance(result, dict) else []
+            payload = {
+                'advocate_code': result.get('advocate_code', advocate_code) if isinstance(result, dict) else advocate_code,
+                'date': result.get('date', date_str) if isinstance(result, dict) else date_str,
+                'total_cases': result.get('count', len(cases)) if isinstance(result, dict) else len(cases),
+                'cases': cases,
+                'saved_at': datetime.now().isoformat(),
+                'saved_by': 'cron'
+            }
+
+            if supabase_client.save_causelist_history(payload):
+                logger.info("Daily causelist saved successfully")
+            else:
+                logger.error("Failed to save daily causelist")
+
+        except Exception as e:
+            logger.error(f"Daily causelist save failed: {e}")
     
     def stop(self):
         """Stop the scheduler"""

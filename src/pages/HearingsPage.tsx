@@ -11,11 +11,10 @@ interface Hearing {
   case_number: string;
   hearing_date: string;
   hearing_court: string;
-  status: 'pending' | 'disposed' | 'adjourned';
+  status: 'pending' | 'filed' | 'disposed' | 'closed';
   mention_date?: string;
   listing_date?: string;
   judge_name?: string;
-  motion_type?: string;
   created_at: string;
 }
 
@@ -24,7 +23,7 @@ export default function HearingsPage() {
   const [hearings, setHearings] = useState<Hearing[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'disposed' | 'adjourned'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'filed' | 'disposed' | 'closed'>('all');
   const [showForm, setShowForm] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -37,40 +36,43 @@ export default function HearingsPage() {
     setLoading(true);
     try {
       let query = supabase
-        .from('hearings')
-        .select('*')
-        .order('hearing_date', { ascending: false });
+        .from('cases')
+        .select('id, case_number, listing_date, return_date, status, jud_name, created_at')
+        .or('listing_date.not.is.null,return_date.not.is.null')
+        .order('listing_date', { ascending: false });
 
       if (filterStatus !== 'all') {
         query = query.eq('status', filterStatus);
       }
 
-      const { data: hearingsData, error: hearingsError } = await query;
+      const { data: casesData, error: casesError } = await query;
 
-      if (hearingsError) throw hearingsError;
+      if (casesError) throw casesError;
 
-      // Fetch case numbers separately
-      if (hearingsData && hearingsData.length > 0) {
-        const caseIds = [...new Set(hearingsData.map(h => h.case_id).filter(Boolean))];
-        
-        const { data: casesData, error: casesError } = await supabase
-          .from('cases')
-          .select('id, case_number')
-          .in('id', caseIds);
+      const formattedData = (casesData || [])
+        .map((c: any) => {
+          const listingDate = c.listing_date || '';
+          const returnDate = c.return_date || '';
+          const hearingDate = listingDate || returnDate;
 
-        if (casesError) throw casesError;
+          if (!hearingDate) return null;
 
-        const caseMap = new Map(casesData?.map(c => [c.id, c.case_number]) || []);
+          return {
+            id: c.id,
+            case_id: c.id,
+            case_number: c.case_number || 'N/A',
+            hearing_date: hearingDate,
+            hearing_court: '',
+            status: c.status || 'pending',
+            mention_date: returnDate || null,
+            listing_date: listingDate || null,
+            judge_name: c.jud_name || null,
+            created_at: c.created_at || new Date().toISOString()
+          } as Hearing;
+        })
+        .filter(Boolean) as Hearing[];
 
-        const formattedData = hearingsData.map((h: any) => ({
-          ...h,
-          case_number: caseMap.get(h.case_id) || 'N/A'
-        }));
-
-        setHearings(formattedData);
-      } else {
-        setHearings([]);
-      }
+      setHearings(formattedData);
     } catch (error: any) {
       console.error('Error loading hearings:', error);
       toast.error('Failed to load hearings');
@@ -82,7 +84,8 @@ export default function HearingsPage() {
 
   const filteredHearings = hearings.filter(h =>
     h.case_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    h.hearing_court?.toLowerCase().includes(searchTerm.toLowerCase())
+    h.hearing_court?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    h.judge_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Get tomorrow's date
@@ -113,7 +116,7 @@ export default function HearingsPage() {
 
   const disposedCount = hearings.filter(h => h.status === 'disposed').length;
   const pendingCount = hearings.filter(h => h.status === 'pending').length;
-  const adjournedCount = hearings.filter(h => h.status === 'adjourned').length;
+  const closedCount = hearings.filter(h => h.status === 'closed').length;
   const tomorrowCount = tomorrowHearings.length;
 
   const getStatusColor = (status: string) => {
@@ -122,7 +125,7 @@ export default function HearingsPage() {
         return 'bg-green-100 text-green-800 border border-green-200';
       case 'pending':
         return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
-      case 'adjourned':
+      case 'closed':
         return 'bg-blue-100 text-blue-800 border border-blue-200';
       default:
         return 'bg-gray-100 text-gray-800 border border-gray-200';
@@ -135,7 +138,7 @@ export default function HearingsPage() {
         return <CheckCircle className="w-4 h-4" />;
       case 'pending':
         return <Clock className="w-4 h-4" />;
-      case 'adjourned':
+      case 'closed':
         return <AlertCircle className="w-4 h-4" />;
       default:
         return null;
@@ -155,7 +158,7 @@ export default function HearingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Hearings</h1>
-          <p className="text-gray-600 mt-1">Monthly Hearings - Disposed vs Pending</p>
+          <p className="text-gray-600 mt-1">Cases with hearing dates</p>
         </div>
         {isAdmin && (
           <Link
@@ -188,8 +191,8 @@ export default function HearingsPage() {
           <p className="text-2xl font-bold text-green-600 mt-1">{disposedCount}</p>
         </div>
         <div className="bg-white rounded-lg shadow border border-gray-200 p-4">
-          <p className="text-gray-600 text-sm font-medium">Adjourned</p>
-          <p className="text-2xl font-bold text-blue-600 mt-1">{adjournedCount}</p>
+          <p className="text-gray-600 text-sm font-medium">Closed</p>
+          <p className="text-2xl font-bold text-blue-600 mt-1">{closedCount}</p>
         </div>
       </div>
 
@@ -207,7 +210,7 @@ export default function HearingsPage() {
             />
           </div>
           <div className="flex gap-2">
-            {['all', 'pending', 'disposed', 'adjourned'].map((status) => (
+            {['all', 'pending', 'filed', 'disposed', 'closed'].map((status) => (
               <button
                 key={status}
                 onClick={() => setFilterStatus(status as any)}

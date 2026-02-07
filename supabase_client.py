@@ -185,6 +185,33 @@ class SupabaseClient:
             logger.error(f"Failed to fetch audit logs: {e}")
             return []
 
+    def get_causelist_history(self, advocate_code: str, date_str: str) -> Optional[Dict]:
+        """Check if a causelist entry exists for advocate and date"""
+        if not self.client:
+            return None
+        try:
+            response = self.client.table('causelist_history') \
+                .select('id') \
+                .eq('advocate_code', advocate_code) \
+                .eq('date', date_str) \
+                .limit(1) \
+                .execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            logger.error(f"Failed to check causelist history: {e}")
+            return None
+
+    def save_causelist_history(self, payload: Dict) -> bool:
+        """Save daily causelist history"""
+        if not self.client:
+            return False
+        try:
+            self.client.table('causelist_history').insert(payload).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save causelist history: {e}")
+            return False
+
 
 # Singleton instance
 supabase_client = SupabaseClient()
