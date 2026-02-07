@@ -57,7 +57,7 @@ export interface Case {
   lower_court_details?: any[];
   orders?: any[];
   other_documents?: any[];
-  disposal_order_file?: string;
+
   status: 'pending' | 'filed' | 'disposed' | 'closed';
   created_by: string;
   created_at: string;

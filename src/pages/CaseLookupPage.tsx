@@ -268,7 +268,6 @@ export default function CaseLookupPage() {
         lower_court_details: transformedLowerCourt,
         vakalath: transformedVakalath,
         other_documents: transformedCaseHistory,
-        disposal_order_file: fileUrl || null,
         prayer: result.prayer?.prayer || '',
       };
 
@@ -368,9 +367,7 @@ export default function CaseLookupPage() {
           updates.push(`New History Items: Found ${newHistoryCount - oldHistoryCount} new item(s)`);
         }
 
-        if (!existingCase.disposal_order_file && caseData.disposal_order_file) {
-          updates.push('Disposal Order File: Added');
-        }
+
 
         if (!existingCase.prayer && caseData.prayer) {
           updates.push('Prayer: Added');

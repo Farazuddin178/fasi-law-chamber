@@ -420,7 +420,7 @@ export default function AdvocateReportPage() {
             jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || fullDetails?.primary?.judges || null,
             disp_date: parseIndianDate(fullDetails?.primary?.disposaldate) || null,
             disp_type: fullDetails?.primary?.disposaltype || null,
-            disposal_order_file: fileUrl,
+
             
             // CRITICAL FIX: Use full details from backend if available, fallback to basic fields
             petitioners: transformed.transformedPetitioners || rawCase.petitioners || (petName ? [{ s_no: 1, name: petName }] : []),
@@ -569,15 +569,6 @@ export default function AdvocateReportPage() {
                   newValue: `Added ${newLen} item(s)`
                 });
               }
-            }
-
-            if (!existingCase.disposal_order_file && caseData.disposal_order_file) {
-              mergedCaseData.disposal_order_file = caseData.disposal_order_file;
-              changes.push({
-                field: 'disposal_order_file',
-                oldValue: '(empty)',
-                newValue: caseData.disposal_order_file
-              });
             }
 
             if (!existingCase.prayer && caseData.prayer) {
