@@ -26,6 +26,7 @@ import AdvocateReportPage from './pages/AdvocateReportPage';
 import DailyCauselistPage from './pages/DailyCauselistPage';
 import SittingArrangementsPage from './pages/SittingArrangementsPage';
 import NotificationsPage from './pages/NotificationsPage';
+import DataVerificationPage from './pages/DataVerificationPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -73,6 +74,7 @@ function AppRoutes() {
                 <Route path="/daily-causelist" element={<DailyCauselistPage />} />
                 <Route path="/case-lookup" element={<CaseLookupPage />} />
                 <Route path="/sitting-arrangements" element={<SittingArrangementsPage />} />
+                <Route path="/data-verification" element={<DataVerificationPage />} />
                 <Route path="/links" element={<LinksPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/" element={<Navigate to="/dashboard" />} />

@@ -25,7 +25,8 @@ import {
   Calendar,
   UserCircle2,
   BookOpen,
-  CalendarDays
+  CalendarDays,
+  CheckCircle
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import NotificationBell from './NotificationBell';
@@ -72,6 +73,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Advocate Report', path: '/advocate-report', icon: <UserCircle2 className="w-5 h-5" /> },
     { name: 'Daily Causelist', path: '/daily-causelist', icon: <CalendarDays className="w-5 h-5" /> },
     { name: 'Sitting Arrangements', path: '/sitting-arrangements', icon: <BookOpen className="w-5 h-5" /> },
+    { name: 'Data Verification', path: '/data-verification', icon: <CheckCircle className="w-5 h-5" /> },
     { name: 'Hearings', path: '/hearings', icon: <Gavel className="w-5 h-5" /> },
     { name: 'Tasks', path: '/tasks', icon: <ListTodo className="w-5 h-5" /> },
     { name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> },
