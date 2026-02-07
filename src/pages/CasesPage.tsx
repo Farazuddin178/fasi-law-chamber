@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase, Case } from '@/lib/supabase';
 import { Plus, Eye, Edit, Trash, Download, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -13,10 +13,19 @@ export default function CasesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateTypeFilter, setDateTypeFilter] = useState<'all' | 'mention' | 'hearing' | 'listing'>('all');
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     loadCases();
   }, []);
+
+  // Reload cases when navigating back to this page
+  useEffect(() => {
+    if (location.pathname === '/cases') {
+      loadCases();
+    }
+  }, [location.pathname]);
 
   const getDateForType = (caseItem: Case, type: 'mention' | 'hearing' | 'listing') => {
     const mentionDate = caseItem.mention_date || caseItem.return_date;
@@ -62,14 +71,19 @@ export default function CasesPage() {
   }, [searchTerm, statusFilter, dateTypeFilter, cases]);
 
   const loadCases = async () => {
+    setLoading(true);
     try {
+      // Fetch ALL cases by setting a very high limit
+      // Supabase default is 1000, we set 10000 to get all cases
       const { data, error } = await supabase
         .from('cases')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (error) throw error;
       setCases(data || []);
+      console.log(`Loaded ${data?.length || 0} cases from database`);
     } catch (error: any) {
       toast.error(error.message || 'Failed to load cases');
     } finally {
@@ -127,7 +141,12 @@ export default function CasesPage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Cases</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Cases</h1>
+          <p className="text-gray-600 mt-1">
+            Showing {filteredCases.length} of {cases.length} total cases
+          </p>
+        </div>
         <div className="flex gap-3">
           <button
             onClick={handleBulkExport}
