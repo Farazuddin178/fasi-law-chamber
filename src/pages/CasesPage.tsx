@@ -11,11 +11,29 @@ export default function CasesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateTypeFilter, setDateTypeFilter] = useState<'all' | 'mention' | 'hearing' | 'listing'>('all');
   const { user } = useAuth();
 
   useEffect(() => {
     loadCases();
   }, []);
+
+  const getDateForType = (caseItem: Case, type: 'mention' | 'hearing' | 'listing') => {
+    const mentionDate = caseItem.mention_date || caseItem.return_date;
+    const hearingDate = caseItem.hearing_date || caseItem.listing_date;
+    const listingDate = caseItem.listing_date;
+
+    if (type === 'mention') return mentionDate;
+    if (type === 'hearing') return hearingDate;
+    return listingDate;
+  };
+
+  const formatDate = (value?: string) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString();
+  };
 
   useEffect(() => {
     let filtered = cases;
@@ -35,8 +53,13 @@ export default function CasesPage() {
       filtered = filtered.filter(c => c.status === statusFilter);
     }
 
+    // Filter by date type
+    if (dateTypeFilter !== 'all') {
+      filtered = filtered.filter(c => !!getDateForType(c, dateTypeFilter));
+    }
+
     setFilteredCases(filtered);
-  }, [searchTerm, statusFilter, cases]);
+  }, [searchTerm, statusFilter, dateTypeFilter, cases]);
 
   const loadCases = async () => {
     try {
@@ -127,7 +150,7 @@ export default function CasesPage() {
 
       {/* Search and Filter */}
       <div className="bg-white rounded-lg shadow border border-gray-200 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-lg border border-gray-300">
             <Search className="w-5 h-5 text-gray-400" />
             <input
@@ -148,6 +171,16 @@ export default function CasesPage() {
             <option value="filed">Filed</option>
             <option value="disposed">Disposed</option>
             <option value="closed">Closed</option>
+          </select>
+          <select
+            value={dateTypeFilter}
+            onChange={(e) => setDateTypeFilter(e.target.value as any)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Date Types</option>
+            <option value="mention">Mention Date</option>
+            <option value="hearing">Hearing Date</option>
+            <option value="listing">Listing Date</option>
           </select>
         </div>
         {searchTerm && (
@@ -174,8 +207,8 @@ export default function CasesPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 whitespace-nowrap w-[15%]">
                   Status
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 whitespace-nowrap w-[15%]">
-                  Filing Date
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 whitespace-nowrap w-[20%]">
+                  Dates
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 whitespace-nowrap w-[15%]">
                   Actions
@@ -210,8 +243,27 @@ export default function CasesPage() {
                         {caseItem.status}
                       </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {caseItem.filing_date ? new Date(caseItem.filing_date).toLocaleDateString() : '-'}
+                    <td className="px-4 py-4 text-sm text-gray-600">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-400">Mention</span>
+                          <span className="text-xs font-medium text-gray-700">
+                            {formatDate(caseItem.mention_date || caseItem.return_date)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-400">Hearing</span>
+                          <span className="text-xs font-medium text-gray-700">
+                            {formatDate(caseItem.hearing_date || caseItem.listing_date)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-400">Listing</span>
+                          <span className="text-xs font-medium text-gray-700">
+                            {formatDate(caseItem.listing_date)}
+                          </span>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">

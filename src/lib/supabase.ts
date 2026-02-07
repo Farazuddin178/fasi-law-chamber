@@ -45,6 +45,8 @@ export interface Case {
   registration_date?: string;
   listing_date?: string;
   return_date?: string;
+  mention_date?: string;
+  hearing_date?: string;
   disp_date?: string;
   disp_type?: string;
   prayer?: string;
