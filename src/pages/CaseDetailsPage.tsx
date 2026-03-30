@@ -57,6 +57,22 @@ export default function CaseDetailsPage() {
     return [];
   };
 
+  // FIX: Safely render any value as a string. Prevents React error #31 when a DB field
+  // unexpectedly contains an object (e.g., casehistory entries with {judges, business, listDate}).
+  // Objects are truthy, so `{obj || 'N/A'}` tries to render the object as a React child.
+  const safeText = (value: any, fallback: string = '-'): string => {
+    if (value === null || value === undefined || value === '') return fallback;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (typeof value === 'object') {
+      // Handle casehistory-style objects
+      if (value.business || value.judges || value.listDate) {
+        return `${value.listDate || ''} — ${value.business || ''}${value.judges ? ' (' + value.judges + ')' : ''}`.trim() || fallback;
+      }
+      try { return JSON.stringify(value); } catch { return fallback; }
+    }
+    return String(value);
+  };
+
   const formatConnectedMatter = (cm: any): string => {
     if (!cm) return '-';
     if (typeof cm === 'string') return cm;
@@ -118,7 +134,30 @@ export default function CaseDetailsPage() {
         navigate('/cases');
         return;
       }
-      setCaseData(data);
+
+      // FIX: Sanitize top-level fields to prevent React error #31.
+      // Some DB rows may store objects (e.g., casehistory entries with {judges, business, listDate})
+      // in scalar fields. Objects are truthy, so `{obj || 'N/A'}` renders the object as a React child.
+      // Array fields (petitioners, orders, etc.) are intentionally left as-is.
+      const arrayFields = new Set([
+        'petitioners', 'respondents', 'ia_details', 'ia_sr_details',
+        'usr_details', 'submission_dates', 'orders', 'connected_matters',
+        'vakalath', 'lower_court_details', 'other_documents'
+      ]);
+      const sanitized = { ...data };
+      for (const key of Object.keys(sanitized)) {
+        const val = (sanitized as any)[key];
+        if (val && typeof val === 'object' && !Array.isArray(val) && !arrayFields.has(key)) {
+          // Convert stray objects to a readable string
+          if (val.business || val.judges || val.listDate) {
+            (sanitized as any)[key] = `${val.listDate || ''} — ${val.business || ''}${val.judges ? ' (' + val.judges + ')' : ''}`.trim();
+          } else {
+            (sanitized as any)[key] = JSON.stringify(val);
+          }
+        }
+      }
+
+      setCaseData(sanitized);
     } catch (error: any) {
       toast.error(error.message || 'Failed to load case');
       navigate('/cases');
@@ -1047,14 +1086,27 @@ Generated: ${new Date().toLocaleString()}
 
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Documents</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Documents / Case History</h2>
           <div className="space-y-2">
-            {toArray<any>(caseData.other_documents).map((d, idx: number) => (
-              <div key={idx} className="flex justify-between items-center">
-                <div className="text-gray-900">{d.file_name || d}</div>
-                <a className="text-blue-600 hover:underline" href={d.file_path || '#'} target="_blank" rel="noreferrer">Open</a>
-              </div>
-            ))}
+            {toArray<any>(caseData.other_documents).map((d, idx: number) => {
+              // Case history objects from TSHC API have keys like {judges, business, listDate}
+              if (d && typeof d === 'object' && !d.file_name) {
+                const label = d.business
+                  ? `${d.listDate || ''} — ${d.business}${d.judges ? ' (' + d.judges + ')' : ''}`
+                  : JSON.stringify(d);
+                return (
+                  <div key={idx} className="flex justify-between items-center">
+                    <div className="text-gray-900">{label}</div>
+                  </div>
+                );
+              }
+              return (
+                <div key={idx} className="flex justify-between items-center">
+                  <div className="text-gray-900">{typeof d === 'string' ? d : (d.file_name || JSON.stringify(d))}</div>
+                  <a className="text-blue-600 hover:underline" href={d.file_path || '#'} target="_blank" rel="noreferrer">Open</a>
+                </div>
+              );
+            })}
             {toArray<any>(caseData.other_documents).length === 0 && (
               <p className="text-gray-500">No documents available</p>
             )}
