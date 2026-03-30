@@ -126,12 +126,13 @@ class CronJobService:
                     results = notification_service.send_hearing_reminder(case, assignees)
                     
                     # 2. Send In-App Reminders (Supabase)
+                    # FIX: Use 'hearing_scheduled' type instead of 'task'
                     for user in assignees:
                          supabase_client.create_notification(
                              user['id'],
-                             f"⚖️ Hearing Reminder: {case_number}",
+                             f"\u2696\ufe0f Hearing Reminder: {case_number}",
                              f"Case {case_number} is listed for tomorrow ({case.get('listing_date')}). Please prepare.",
-                             'task',
+                             'hearing_scheduled',
                              'high'
                          )
                     

@@ -29,17 +29,22 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // Handle notification click
+// FIX: Navigate to /notifications instead of just '/' so user sees the notification
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl = event.notification.data?.url || '/notifications';
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then((clientList) => {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Try to focus an existing window
       for (let i = 0; i < clientList.length; i++) {
-        if (clientList[i].url === '/' && 'focus' in clientList[i]) {
+        if ('focus' in clientList[i]) {
+          clientList[i].navigate(targetUrl);
           return clientList[i].focus();
         }
       }
+      // Open a new window if none exists
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(targetUrl);
       }
     })
   );

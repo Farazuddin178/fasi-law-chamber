@@ -110,10 +110,12 @@ export default function AnnouncementsPage() {
         if (error) throw error;
         
         // Send in-app notification to all users using centralized manager
+        // FIX: Pass excludeUserId so the creator doesn't get their own announcement notification
         await notificationManager.notifyAnnouncement(
           formData.title,
           formData.content,
-          'medium' // Default priority
+          'medium', // Default priority
+          user?.id  // Exclude the creator from receiving notification
         );
         
         // Send WhatsApp & Email notifications via backend

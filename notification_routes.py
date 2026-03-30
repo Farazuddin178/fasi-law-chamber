@@ -61,8 +61,19 @@ def notify_task_assigned():
                         task['case_number'] = case.get('case_number', 'N/A')
                         task['hearing_date'] = case.get('listing_date') or case.get('filing_date', 'Not scheduled')
                 
-                # Send notifications
+                # Send external notifications (WhatsApp/Email)
                 notification_service.send_task_assignment_notification(task, assignee, a_name)
+                
+                # FIX: Also create in-app notification for reliability
+                # (Even if frontend creates one too, checkDuplicate in notificationManager prevents dupes)
+                supabase_client.create_notification(
+                    a_id,
+                    f"📋 New Task Assigned",
+                    f"{a_name} assigned you: \"{task.get('title', 'Untitled')}\"",
+                    'task',
+                    'high'
+                )
+                
                 logger.info(f"Async notification sent for task {t_id}")
             except Exception as e:
                 logger.error(f"Async notification failed: {e}")
@@ -122,13 +133,13 @@ def notify_hearing_reminder():
                 # 1. External
                 notification_service.send_hearing_reminder(case_data, assignees_list)
                 
-                # 2. In-App
+                # 2. In-App — FIX: Use 'hearing_scheduled' type instead of 'task'
                 for user in assignees_list:
                     supabase_client.create_notification(
                         user['id'],
-                        f"⚖️ Hearing Reminder: {case_data.get('case_number')}",
+                        f"\u2696\ufe0f Hearing Reminder: {case_data.get('case_number')}",
                         f"Reminder: Case {case_data.get('case_number')} is scheduled for hearing on {case_data.get('listing_date') or case_data.get('hearing_date')}.",
-                        'task',
+                        'hearing_scheduled',
                         'high'
                     )
 
@@ -199,7 +210,21 @@ def notify_announcement():
         # Send notifications in background to prevent timeout
         def background_send(announcement_data, users_list):
             try:
+                # Send External (WhatsApp + Email)
                 notification_service.send_announcement_notification(announcement_data, users_list)
+                
+                # FIX: Also create in-app notifications from backend for reliability
+                for user_item in users_list:
+                    user_id = user_item.get('id')
+                    if user_id:
+                        supabase_client.create_notification(
+                            user_id,
+                            f"📢 {announcement_data.get('title', 'Announcement')}",
+                            announcement_data.get('content', '')[:500],
+                            'announcement',
+                            'medium'
+                        )
+                
                 logger.info("Background announcement notifications completed")
             except Exception as e:
                 logger.error(f"Background notification failed: {e}")
@@ -293,4 +318,46 @@ def test_email():
         return jsonify(result), 200
     
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@notifications_bp.route('/send-push', methods=['POST'])
+def send_push():
+    """Send push notification via FCM (placeholder/logging endpoint)
+    
+    FIX: This endpoint was missing entirely — notificationHelper.ts was calling
+    /api/notifications/send-push which returned 404. Now it exists as a placeholder
+    that logs the request. Full FCM Admin SDK integration requires server-side
+    Firebase credentials.
+    """
+    try:
+        data = request.get_json()
+        tokens = data.get('tokens', [])
+        notification = data.get('notification', {})
+        extra_data = data.get('data', {})
+        
+        if not tokens:
+            return jsonify({'success': False, 'error': 'No tokens provided'}), 400
+        
+        # Log the push request (full FCM delivery requires Firebase Admin SDK)
+        logger.info(f"Push notification requested for {len(tokens)} token(s): {notification.get('title', 'N/A')}")
+        
+        # TODO: Implement actual FCM sending with firebase-admin SDK:
+        # import firebase_admin
+        # from firebase_admin import messaging
+        # message = messaging.MulticastMessage(
+        #     notification=messaging.Notification(title=..., body=...),
+        #     tokens=tokens,
+        #     data=extra_data
+        # )
+        # response = messaging.send_multicast(message)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Push request logged for {len(tokens)} token(s)',
+            'note': 'FCM Admin SDK not configured yet — push logged but not delivered'
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Push notification endpoint failed: {e}")
         return jsonify({'error': str(e)}), 500

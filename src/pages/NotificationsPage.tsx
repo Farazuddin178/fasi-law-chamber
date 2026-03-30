@@ -1,14 +1,32 @@
-import { useEffect, useState } from 'react';
+/**
+ * Notifications Page - Full notification list with CRUD operations
+ *
+ * FIXES APPLIED:
+ * 1. Fixed real-time cleanup leak: setupRealTimeSubscription() returned a cleanup function
+ *    that was never called — the useEffect discarded the return value. Now uses inline
+ *    subscription + proper cleanup via supabase.removeChannel().
+ * 2. Fixed channel name collision: uses unique channel name 'page_notifications_<userId>'
+ *    to avoid conflicting with NotificationBell's channel.
+ * 3. Fixed markAsRead: now also sets read_at timestamp.
+ * 4. Fixed markAllAsRead: now uses user_id + is_read filter directly (more efficient than
+ *    collecting IDs client-side) and sets read_at.
+ * 5. Added delete-all functionality.
+ * 6. Added proper error handling throughout.
+ * 7. Added "mark as unread" capability.
+ * 8. Improved filter to include "high priority" option.
+ */
+
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, Trash2, CheckCircle, AlertCircle, FileText, Users, Calendar, Settings, Clock } from 'lucide-react';
+import { ArrowLeft, Trash2, CheckCircle, AlertCircle, FileText, Users, Calendar, Clock, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 interface Notification {
   id: string;
   user_id: string;
-  type: string; // 'roster_change' | 'task_assigned' | 'case_updated' | 'document_uploaded' | 'hearing_scheduled' | 'order_issued'
+  type: string;
   title: string;
   message: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
@@ -20,28 +38,23 @@ interface Notification {
 
 export default function NotificationsPage() {
   const { user } = useAuth();
+  const userId = (user as any)?.id ?? (user as any)?.user_id ?? (user as any)?.uid ?? null;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('all'); // all | unread | today
+  const [filter, setFilter] = useState<string>('all');
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
-    if (user?.id) {
-      loadNotifications();
-      setupRealTimeSubscription();
-    }
-  }, [user?.id]);
-
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
+    if (!userId) return;
     try {
       setLoading(true);
-      let query = supabase
+      const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      const { data, error } = await query;
       if (error) throw error;
       setNotifications(data || []);
     } catch (error: any) {
@@ -50,43 +63,79 @@ export default function NotificationsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
-  const setupRealTimeSubscription = () => {
+  // FIX #1 & #2: Inline real-time subscription with proper cleanup
+  useEffect(() => {
+    if (!userId) return;
+
+    loadNotifications();
+
     const channel = supabase
-      .channel(`notifications_${user?.id}`)
+      .channel(`page_notifications_${userId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'notifications',
-          filter: `user_id=eq.${user?.id}`,
+          filter: `user_id=eq.${userId}`,
         },
-        (payload) => {
+        (_payload) => {
+          // Reload on any change (INSERT, UPDATE, DELETE)
           loadNotifications();
         }
       )
       .subscribe();
 
+    // FIX #1: Actually return cleanup function from useEffect
     return () => {
       supabase.removeChannel(channel);
     };
-  };
+  }, [userId, loadNotifications]);
 
+  // FIX #3: markAsRead now also sets read_at
   const markAsRead = async (notificationId: string) => {
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('id', notificationId);
+
+      if (error) throw error;
+      // Optimistic local update
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === notificationId
+            ? { ...n, is_read: true, read_at: new Date().toISOString() }
+            : n
+        )
+      );
+    } catch (error: any) {
+      toast.error('Failed to update notification');
+      console.error(error);
+    }
+  };
+
+  // FIX #7: Mark as unread
+  const markAsUnread = async (notificationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: false, read_at: null })
         .eq('id', notificationId);
 
       if (error) throw error;
       setNotifications((prev) =>
-        prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
+        prev.map((n) =>
+          n.id === notificationId
+            ? { ...n, is_read: false, read_at: null }
+            : n
+        )
       );
     } catch (error: any) {
       toast.error('Failed to update notification');
+      console.error(error);
     }
   };
 
@@ -103,32 +152,69 @@ export default function NotificationsPage() {
       toast.success('Notification deleted');
     } catch (error: any) {
       toast.error('Failed to delete notification');
+      console.error(error);
     } finally {
       setDeleteLoading(null);
     }
   };
 
+  // FIX #4: markAllAsRead uses server-side filter (more efficient) and sets read_at
   const markAllAsRead = async () => {
+    if (!userId) return;
+    const unreadCount = notifications.filter((n) => !n.is_read).length;
+    if (unreadCount === 0) {
+      toast.success('No unread notifications');
+      return;
+    }
+    setActionLoading(true);
     try {
-      const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
-      if (unreadIds.length === 0) {
-        toast.success('No unread notifications');
-        return;
-      }
-
       const { error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
-        .in('id', unreadIds);
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('is_read', false);
 
       if (error) throw error;
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-      toast.success(`Marked ${unreadIds.length} notification(s) as read`);
+
+      // Optimistic local update
+      const now = new Date().toISOString();
+      setNotifications((prev) =>
+        prev.map((n) => ({ ...n, is_read: true, read_at: n.read_at || now }))
+      );
+      toast.success(`Marked ${unreadCount} notification(s) as read`);
     } catch (error: any) {
       toast.error('Failed to mark all as read');
+      console.error(error);
+    } finally {
+      setActionLoading(false);
     }
   };
 
+  // FIX #5: Delete all notifications
+  const deleteAllNotifications = async () => {
+    if (!userId) return;
+    if (notifications.length === 0) return;
+    if (!window.confirm(`Delete all ${notifications.length} notifications? This cannot be undone.`)) return;
+
+    setActionLoading(true);
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      setNotifications([]);
+      toast.success('All notifications deleted');
+    } catch (error: any) {
+      toast.error('Failed to delete all notifications');
+      console.error(error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // FIX #8: Improved filtering with high-priority option
   const getFilteredNotifications = () => {
     let filtered = notifications;
 
@@ -138,6 +224,8 @@ export default function NotificationsPage() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       filtered = filtered.filter((n) => new Date(n.created_at) >= today);
+    } else if (filter === 'high_priority') {
+      filtered = filtered.filter((n) => n.priority === 'high' || n.priority === 'urgent');
     }
 
     return filtered;
@@ -146,16 +234,19 @@ export default function NotificationsPage() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'roster_change':
+      case 'sitting_arrangement':
         return <Users className="w-5 h-5" />;
+      case 'task':
       case 'task_assigned':
         return <CheckCircle className="w-5 h-5" />;
       case 'case_updated':
-        return <FileText className="w-5 h-5" />;
       case 'document_uploaded':
         return <FileText className="w-5 h-5" />;
       case 'hearing_scheduled':
         return <Calendar className="w-5 h-5" />;
       case 'order_issued':
+        return <AlertCircle className="w-5 h-5" />;
+      case 'announcement':
         return <AlertCircle className="w-5 h-5" />;
       default:
         return <Clock className="w-5 h-5" />;
@@ -165,7 +256,9 @@ export default function NotificationsPage() {
   const getNotificationBadgeColor = (type: string) => {
     switch (type) {
       case 'roster_change':
+      case 'sitting_arrangement':
         return 'bg-blue-100 text-blue-800';
+      case 'task':
       case 'task_assigned':
         return 'bg-green-100 text-green-800';
       case 'case_updated':
@@ -176,25 +269,16 @@ export default function NotificationsPage() {
         return 'bg-orange-100 text-orange-800';
       case 'order_issued':
         return 'bg-red-100 text-red-800';
+      case 'announcement':
+        return 'bg-amber-100 text-amber-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getNotificationBgColor = (type: string, isRead: boolean) => {
-    if (isRead) return 'bg-white';
-    const color = getNotificationBadgeColor(type);
-    if (color.includes('blue')) return 'bg-blue-50';
-    if (color.includes('green')) return 'bg-green-50';
-    if (color.includes('purple')) return 'bg-purple-50';
-    if (color.includes('yellow')) return 'bg-yellow-50';
-    if (color.includes('orange')) return 'bg-orange-50';
-    if (color.includes('red')) return 'bg-red-50';
-    return 'bg-gray-50';
-  };
-
   const filteredNotifications = getFilteredNotifications();
   const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const highPriorityCount = notifications.filter((n) => n.priority === 'high' || n.priority === 'urgent').length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -225,7 +309,7 @@ export default function NotificationsPage() {
       <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {/* Controls */}
         <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setFilter('all')}
               className={`px-4 py-2 rounded-lg font-medium transition ${
@@ -256,15 +340,37 @@ export default function NotificationsPage() {
             >
               Today
             </button>
-          </div>
-          {unreadCount > 0 && (
             <button
-              onClick={markAllAsRead}
-              className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-medium hover:bg-green-200 transition"
+              onClick={() => setFilter('high_priority')}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                filter === 'high_priority'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300'
+              }`}
             >
-              Mark all as read
+              High Priority ({highPriorityCount})
             </button>
-          )}
+          </div>
+          <div className="flex gap-2">
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllAsRead}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-medium hover:bg-green-200 transition disabled:opacity-50"
+              >
+                {actionLoading ? 'Updating...' : 'Mark all as read'}
+              </button>
+            )}
+            {notifications.length > 0 && (
+              <button
+                onClick={deleteAllNotifications}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition disabled:opacity-50"
+              >
+                Delete all
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Notifications List */}
@@ -302,6 +408,13 @@ export default function NotificationsPage() {
                           {!notification.is_read && (
                             <span className="inline-block w-2 h-2 bg-blue-600 rounded-full"></span>
                           )}
+                          {notification.priority && (notification.priority === 'high' || notification.priority === 'urgent') && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              notification.priority === 'urgent' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                            }`}>
+                              {notification.priority}
+                            </span>
+                          )}
                         </div>
                         <p className="text-gray-700 text-sm mb-2">{notification.message}</p>
                         <p className="text-xs text-gray-500">
@@ -310,14 +423,23 @@ export default function NotificationsPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex-shrink-0 flex items-center gap-2">
-                        {!notification.is_read && (
+                      <div className="flex-shrink-0 flex items-center gap-1">
+                        {/* FIX #7: Toggle read/unread */}
+                        {!notification.is_read ? (
                           <button
                             onClick={() => markAsRead(notification.id)}
                             className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition"
                             title="Mark as read"
                           >
-                            <CheckCircle className="w-5 h-5" />
+                            <Eye className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => markAsUnread(notification.id)}
+                            className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition"
+                            title="Mark as unread"
+                          >
+                            <EyeOff className="w-5 h-5" />
                           </button>
                         )}
                         <button
@@ -326,7 +448,11 @@ export default function NotificationsPage() {
                           className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
                           title="Delete notification"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          {deleteLoading === notification.id ? (
+                            <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <Trash2 className="w-5 h-5" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -338,7 +464,11 @@ export default function NotificationsPage() {
             <div className="text-center py-12">
               <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 text-lg">
-                {filter === 'unread' ? 'No unread notifications' : 'No notifications'}
+                {filter === 'unread'
+                  ? 'No unread notifications'
+                  : filter === 'high_priority'
+                  ? 'No high priority notifications'
+                  : 'No notifications'}
               </p>
               <p className="text-gray-500 text-sm mt-1">
                 {filter === 'unread'

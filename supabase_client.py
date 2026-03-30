@@ -95,10 +95,15 @@ class SupabaseClient:
             return []
     
     def create_notification(self, user_id: str, title: str, message: str, type_val: str, priority: str = 'medium') -> bool:
-        """Create in-app notification"""
+        """Create in-app notification
+        
+        FIX: Added created_at timestamp explicitly to ensure consistent behavior
+        across different Supabase configurations.
+        """
         if not self.client:
             return False
         try:
+            from datetime import datetime
             data = {
                 'user_id': user_id,
                 'title': title,
@@ -106,8 +111,9 @@ class SupabaseClient:
                 'type': type_val,
                 'priority': priority,
                 'is_read': False,
+                'read_at': None,
                 'related_id': None,
-                # 'created_at' is handled by default or we can pass 'now()'
+                'created_at': datetime.utcnow().isoformat() + 'Z',
             }
             self.client.table('notifications').insert(data).execute()
             return True
@@ -116,21 +122,39 @@ class SupabaseClient:
             return False
 
     def get_tomorrow_hearings(self) -> List[Dict]:
-        """Get cases listed for tomorrow"""
+        """Get cases listed for tomorrow
+        
+        FIX: listing_date may be stored as a timestamp with time component.
+        Use range comparison (gte/lt) instead of exact eq to handle both
+        date-only and datetime columns correctly.
+        """
         if not self.client:
             return []
         from datetime import date, timedelta
         try:
-            tomorrow = (date.today() + timedelta(days=1)).isoformat()
-            # Use 'cases' table and 'listing_date' column
-            response = self.client.table('cases').select('*').eq('listing_date', tomorrow).execute()
+            tomorrow = date.today() + timedelta(days=1)
+            tomorrow_start = tomorrow.isoformat()  # YYYY-MM-DD
+            day_after = (tomorrow + timedelta(days=1)).isoformat()
+            
+            # Use range query to handle datetime columns correctly
+            response = self.client.table('cases') \
+                .select('*') \
+                .gte('listing_date', tomorrow_start) \
+                .lt('listing_date', day_after) \
+                .eq('status', 'pending') \
+                .execute()
             return response.data if response.data else []
         except Exception as e:
             logger.error(f"Failed to fetch tomorrow's hearings: {e}")
             return []
     
     def get_case_assignees(self, case_id: str) -> List[Dict]:
-        """Get users assigned to a case (via tasks)"""
+        """Get users assigned to a case (via tasks)
+        
+        FIX: Eliminated N+1 query pattern. Previously fetched each user individually
+        in a loop. Now collects all unique user IDs and fetches them in a single
+        .in_() query.
+        """
         if not self.client:
             return []
         try:
@@ -143,14 +167,12 @@ class SupabaseClient:
             # Get unique user IDs
             user_ids = list(set([t['assigned_to'] for t in tasks_response.data if t.get('assigned_to')]))
             
-            # Fetch user details
-            users = []
-            for user_id in user_ids:
-                user = self.get_user(user_id)
-                if user:
-                    users.append(user)
+            if not user_ids:
+                return []
             
-            return users
+            # FIX: Single batch query instead of N individual queries
+            users_response = self.client.table('users').select('*').in_('id', user_ids).execute()
+            return users_response.data if users_response.data else []
         except Exception as e:
             logger.error(f"Failed to fetch case assignees: {e}")
             return []
