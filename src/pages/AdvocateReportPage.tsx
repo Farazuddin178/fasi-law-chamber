@@ -12,6 +12,7 @@ interface AdvCase {
   petName: string;
   resName: string;
   status: string;
+  fullDetails?: any; // Full case details fetched from getCaseDetails API
 }
 
 interface AdvReport {
@@ -60,9 +61,18 @@ export default function AdvocateReportPage() {
   const [loading, setLoading] = useState(false);
   const [bulkAddLoading, setBulkAddLoading] = useState(false);
   const [report, setReport] = useState<AdvReport | null>(null);
+  const [fetchProgress, setFetchProgress] = useState('');
   const navigate = useNavigate();
   const { user } = useAuth();
   const userId = (user as any)?.id ?? (user as any)?.user_id ?? (user as any)?.uid ?? null;
+
+  // Parse case number into mtype/mno/myear components
+  // Handles formats: WP 12345/2025, WP12345/2025, WP(MD) 100/2025, WAMP 50/2025, etc.
+  const parseCaseNumberForAPI = (caseNumber: string) => {
+    const match = caseNumber.match(/^([A-Z][A-Z()]*?)\s*(\d+)\/(\d{4})$/i);
+    if (!match) return null;
+    return { mtype: match[1].toUpperCase(), mno: match[2], myear: match[3] };
+  };
 
   const fetchReport = async () => {
     if (!advCode.trim()) {
@@ -70,16 +80,18 @@ export default function AdvocateReportPage() {
       return;
     }
     setLoading(true);
+    setFetchProgress('');
+    setReport(null);
     try {
       const backendURL = window.location.hostname === 'localhost' 
         ? 'http://localhost:5001'
         : ''; // Empty string = use same domain (current page's domain)
       
+      // === STEP 1: Fetch advocate report (case list summary) ===
+      setFetchProgress('Fetching advocate report...');
       const url = `${backendURL}/getAdvReport?advcode=${encodeURIComponent(advCode.trim())}&year=${encodeURIComponent(year.trim())}`;
       const resp = await fetch(url);
       const contentType = resp.headers.get('content-type') || '';
-
-      // Read response body once
       const bodyText = await resp.text();
 
       if (!resp.ok) {
@@ -99,20 +111,76 @@ export default function AdvocateReportPage() {
 
       if (!data || !data.advreport) throw new Error('No report found');
       
-      console.log('Report Data Sample:', data.advreport.caseDetails[0]); // Debug log
+      const advReport = data.advreport as AdvReport;
+      console.log('Report Data Sample:', advReport.caseDetails?.[0]);
 
-      setReport(data.advreport as AdvReport);
-      toast.success('Report loaded');
+      // Show initial report immediately so user sees the case list
+      setReport(advReport);
+
+      // === STEP 2: Enrich all numbered cases with full details via batch endpoint ===
+      const numberedCases = (advReport.caseDetails || [])
+        .map((c: AdvCase) => {
+          if (!c.caseNumber || c.caseNumber.toLowerCase() === 'not numbered') return null;
+          const parsed = parseCaseNumberForAPI(c.caseNumber);
+          if (!parsed) return null;
+          return { ...parsed, key: c.caseNumber };
+        })
+        .filter(Boolean) as { mtype: string; mno: string; myear: string; key: string }[];
+
+      if (numberedCases.length > 0) {
+        setFetchProgress(`Fetching full details for ${numberedCases.length} cases...`);
+        const enrichedMap: Record<string, any> = {};
+        const BATCH_SIZE = 10;
+
+        for (let i = 0; i < numberedCases.length; i += BATCH_SIZE) {
+          const batch = numberedCases.slice(i, i + BATCH_SIZE);
+          const done = Math.min(i + BATCH_SIZE, numberedCases.length);
+          setFetchProgress(`Fetching case details: ${done}/${numberedCases.length}...`);
+
+          try {
+            const batchResp = await fetch(`${backendURL}/getBatchCaseDetails`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cases: batch }),
+            });
+            if (batchResp.ok) {
+              const batchData = await batchResp.json();
+              if (batchData.results) {
+                Object.assign(enrichedMap, batchData.results);
+              }
+            }
+          } catch (batchErr) {
+            console.error('Batch fetch error for chunk', i, batchErr);
+            // Continue with remaining batches even if one fails
+          }
+        }
+
+        // Merge full details back into each case
+        const enrichedCaseDetails = advReport.caseDetails.map((c: AdvCase) => {
+          const details = enrichedMap[c.caseNumber];
+          return {
+            ...c,
+            fullDetails: (details && details.primary) ? details : null,
+          };
+        });
+
+        const enrichedCount = enrichedCaseDetails.filter((c: AdvCase) => c.fullDetails).length;
+        setReport({ ...advReport, caseDetails: enrichedCaseDetails });
+        toast.success(`Report loaded: ${advReport.caseDetails.length} cases, ${enrichedCount} with full details`);
+      } else {
+        toast.success('Report loaded (no numbered cases to enrich)');
+      }
     } catch (e: any) {
       toast.error(e?.message || 'Failed to load report');
       setReport(null);
     } finally {
       setLoading(false);
+      setFetchProgress('');
     }
   };
 
   const parseCaseNumber = (caseNumber: string) => {
-    const match = caseNumber.match(/^([A-Z]+)\s*(\d+)\/(\d{4})$/i);
+    const match = caseNumber.match(/^([A-Z][A-Z()]*?)\s*(\d+)\/(\d{4})$/i);
     if (!match) return null;
     const [, mtype, mno, myear] = match;
     return {
@@ -140,13 +208,14 @@ export default function AdvocateReportPage() {
     }
   };
 
-  // Helper to fetch full case details for a numbered case
+  // Helper to fetch full case details for a numbered case (fallback if not pre-fetched)
   const fetchCaseDetails = async (caseNumber: string) => {
     try {
-      const match = caseNumber.match(/^([A-Z]+)\s*(\d+)\/(\d{4})$/i);
-      if (!match) return null;
+      // Use the same parser that handles WP(MD), WAMP, etc.
+      const parsed = parseCaseNumberForAPI(caseNumber);
+      if (!parsed) return null;
 
-      const [, mtype, mno, myear] = match;
+      const { mtype, mno, myear } = parsed;
       const backendURL = window.location.hostname === 'localhost'
         ? 'http://localhost:5001'
         : '';
@@ -404,12 +473,20 @@ export default function AdvocateReportPage() {
             if (match) category = match[1].toUpperCase();
           }
 
-          // FOR NUMBERED CASES: Fetch full details from backend like CaseLookup does
+          // FOR NUMBERED CASES: Use pre-fetched fullDetails if available, otherwise fetch on demand
           let fullDetails: any = null;
           let transformed: any = {};
 
           if (isNumbered) {
-            fullDetails = await fetchCaseDetails(normalizedCaseNumber);
+            // Prefer pre-fetched details from the enrichment phase
+            if ((advCase as any).fullDetails) {
+              fullDetails = (advCase as any).fullDetails;
+              console.log(`Using pre-fetched details for ${normalizedCaseNumber}`);
+            } else {
+              // Fallback: fetch individually (slower, but ensures we try)
+              console.log(`No pre-fetched details for ${normalizedCaseNumber}, fetching individually...`);
+              fullDetails = await fetchCaseDetails(normalizedCaseNumber);
+            }
             if (fullDetails) {
               transformed = transformCaseDetails(fullDetails);
             }
@@ -783,6 +860,15 @@ export default function AdvocateReportPage() {
             </button>
           </div>
         </div>
+        {/* Progress bar for case detail enrichment */}
+        {fetchProgress && (
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+              <span className="text-sm font-medium text-blue-700">{fetchProgress}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {report && (

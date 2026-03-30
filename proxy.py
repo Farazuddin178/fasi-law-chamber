@@ -3,6 +3,7 @@ from flask_cors import CORS
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -73,6 +74,50 @@ def get_adv_report():
         return jsonify(data)
     except Exception as e:
         logging.error(f"Error fetching advocate report: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/getBatchCaseDetails', methods=['POST'])
+def get_batch_case_details():
+    """Fetch full case details for multiple cases in one request (parallel).
+    Accepts JSON body: { "cases": [ { "mtype": "WP", "mno": "12345", "myear": "2025", "key": "WP 12345/2025" }, ... ] }
+    Returns: { "results": { "<key>": <caseDetailsJSON>, ... } }
+    """
+    try:
+        data = request.get_json(force=True)
+        cases = data.get('cases', [])
+
+        if not cases:
+            return jsonify({'results': {}})
+
+        results = {}
+
+        def fetch_single_case(case_info):
+            mtype = case_info.get('mtype', '')
+            mno = case_info.get('mno', '')
+            myear = case_info.get('myear', '')
+            key = case_info.get('key', f"{mtype} {mno}/{myear}")
+            try:
+                url = f'https://csis.tshc.gov.in/getCaseDetails?mtype={mtype}&mno={mno}&myear={myear}'
+                resp = requests.get(url, timeout=60, verify=False)
+                return key, resp.json()
+            except Exception as e:
+                logging.error(f"Error fetching case {key}: {str(e)}")
+                return key, None
+
+        # Parallel fetch with max 5 concurrent threads to avoid rate-limiting
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(fetch_single_case, c) for c in cases]
+            for future in as_completed(futures):
+                try:
+                    key, case_data = future.result()
+                    if case_data is not None:
+                        results[key] = case_data
+                except Exception as e:
+                    logging.error(f"Thread error: {str(e)}")
+
+        return jsonify({'results': results})
+    except Exception as e:
+        logging.error(f"Error in batch case details: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # ==========================================
