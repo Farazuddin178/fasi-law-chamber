@@ -13,7 +13,6 @@ import DocumentsPage from './pages/DocumentsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import ExpensesPage from './pages/ExpensesPage';
 import UsersPage from './pages/UsersPage';
-import LoginLogsPage from './pages/LoginLogsPage';
 import SettingsPage from './pages/SettingsPage';
 import StorageMonitoringPage from './pages/StorageMonitoringPage';
 import GitHubIntegrationPage from './pages/GitHubIntegrationPage';
@@ -62,7 +61,6 @@ function AppRoutes() {
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/expenses" element={<ExpensesPage />} />
                 <Route path="/users" element={<UsersPage />} />
-                <Route path="/logs" element={<LoginLogsPage />} />
                 <Route path="/storage" element={<StorageMonitoringPage />} />
                 <Route path="/github" element={<GitHubIntegrationPage />} />
                 <Route path="/messages" element={<MessagesPage />} />

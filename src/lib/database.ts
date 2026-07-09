@@ -3,7 +3,7 @@
  * All database-related code for Supabase is maintained in this file
  */
 
-import { supabase, Case, Task, User, TaskComment, Document, Expense, LoginLog, Court, TrackedCase, CaseEventRecord } from './supabase';
+import { supabase, Case, Task, User, TaskComment, Document, Expense, Court, TrackedCase, CaseEventRecord } from './supabase';
 import toast from 'react-hot-toast';
 
 // ============================================================================
@@ -620,27 +620,6 @@ export const expensesDB = {
 };
 
 // ============================================================================
-// LOGIN LOGS OPERATIONS
-// ============================================================================
-
-export const loginLogsDB = {
-  // Get all login logs
-  async getAll() {
-    try {
-      const { data, error } = await supabase
-        .from('login_logs')
-        .select('*')
-        .order('login_time', { ascending: false });
-
-      if (error) throw error;
-      return { data: data || [], error: null };
-    } catch (error: any) {
-      return { data: [], error: error.message };
-    }
-  },
-};
-
-// ============================================================================
 // COURTS OPERATIONS (Supreme + High Courts)
 // ============================================================================
 
@@ -929,6 +908,31 @@ export const auditLogsDB = {
     } catch (error: any) {
       console.error('Audit log error:', error);
       return { data: null, error: error.message };
+    }
+  },
+
+  // Create multiple audit log entries in a single insert (used for bulk operations)
+  async createMany(
+    entries: { caseId: string; field: string; oldValue: any; newValue: any; userId: string }[]
+  ) {
+    if (entries.length === 0) return { data: [], error: null };
+    try {
+      const rows = entries.map((e) => ({
+        case_id: e.caseId,
+        changed_field: e.field,
+        old_value: String(e.oldValue),
+        new_value: String(e.newValue),
+        changed_by: this._validateUuid(e.userId),
+        timestamp: new Date().toISOString(),
+      }));
+
+      const { data, error } = await supabase.from('audit_logs').insert(rows).select();
+
+      if (error) throw error;
+      return { data: data || [], error: null };
+    } catch (error: any) {
+      console.error('Bulk audit log error:', error);
+      return { data: [], error: error.message };
     }
   },
 

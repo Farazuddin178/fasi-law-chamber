@@ -20,6 +20,7 @@ export default function AnalyticsPage() {
       const { data, error } = await supabase
         .from('cases')
         .select('*')
+        .range(0, 99999)
         .order('filing_date', { ascending: true });
 
       if (error) throw error;

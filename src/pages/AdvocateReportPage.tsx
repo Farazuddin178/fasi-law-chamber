@@ -131,12 +131,14 @@ export default function AdvocateReportPage() {
         setFetchProgress(`Fetching full details for ${numberedCases.length} cases...`);
         const enrichedMap: Record<string, any> = {};
         const BATCH_SIZE = 10;
+        const CONCURRENT_BATCHES = 3; // PERF: fetch a few batches in parallel instead of one at a time
 
+        const batches: (typeof numberedCases)[] = [];
         for (let i = 0; i < numberedCases.length; i += BATCH_SIZE) {
-          const batch = numberedCases.slice(i, i + BATCH_SIZE);
-          const done = Math.min(i + BATCH_SIZE, numberedCases.length);
-          setFetchProgress(`Fetching case details: ${done}/${numberedCases.length}...`);
+          batches.push(numberedCases.slice(i, i + BATCH_SIZE));
+        }
 
+        const fetchBatch = async (batch: typeof numberedCases) => {
           try {
             const batchResp = await fetch(`${backendURL}/getBatchCaseDetails`, {
               method: 'POST',
@@ -150,9 +152,17 @@ export default function AdvocateReportPage() {
               }
             }
           } catch (batchErr) {
-            console.error('Batch fetch error for chunk', i, batchErr);
+            console.error('Batch fetch error', batchErr);
             // Continue with remaining batches even if one fails
           }
+        };
+
+        let done = 0;
+        for (let i = 0; i < batches.length; i += CONCURRENT_BATCHES) {
+          const group = batches.slice(i, i + CONCURRENT_BATCHES);
+          await Promise.all(group.map(fetchBatch));
+          done += group.reduce((sum, b) => sum + b.length, 0);
+          setFetchProgress(`Fetching case details: ${Math.min(done, numberedCases.length)}/${numberedCases.length}...`);
         }
 
         // Merge full details back into each case
@@ -435,7 +445,39 @@ export default function AdvocateReportPage() {
     const failedCases: string[] = []; // Track which cases failed
 
     try {
-      for (const advCase of report.caseDetails) {
+      // PERF: Pre-fetch all potentially-existing cases in 2 bulk queries instead of
+      // running one duplicate-check query per case (was N sequential round trips).
+      const caseNumbers = Array.from(new Set(
+        report.caseDetails
+          .map((c) => c.caseNumber)
+          .filter((v) => !!v && v.toLowerCase() !== 'not numbered')
+      ));
+      const srNumbers = Array.from(new Set(
+        report.caseDetails.map((c) => c.srNumber).filter((v) => !!v)
+      ));
+
+      const [caseNumberResult, srNumberResult] = await Promise.all([
+        caseNumbers.length > 0
+          ? supabase.from('cases').select('*').in('case_number', caseNumbers)
+          : null,
+        srNumbers.length > 0
+          ? supabase.from('cases').select('*').in('sr_number', srNumbers)
+          : null,
+      ]);
+
+      if (caseNumberResult?.error) console.error('Error pre-fetching existing cases by case_number:', caseNumberResult.error);
+      if (srNumberResult?.error) console.error('Error pre-fetching existing cases by sr_number:', srNumberResult.error);
+
+      const existingByCaseNumber = new Map<string, any>();
+      const existingBySrNumber = new Map<string, any>();
+      (caseNumberResult?.data || []).forEach((c: any) => {
+        if (c.case_number) existingByCaseNumber.set(c.case_number, c);
+      });
+      (srNumberResult?.data || []).forEach((c: any) => {
+        if (c.sr_number) existingBySrNumber.set(c.sr_number, c);
+      });
+
+      const processCase = async (advCase: AdvCase) => {
         try {
           const isNumbered = !!(advCase.caseNumber && advCase.caseNumber.toLowerCase() !== 'not numbered');
           const uniqueValue = isNumbered ? advCase.caseNumber : advCase.srNumber;
@@ -463,7 +505,7 @@ export default function AdvocateReportPage() {
             console.warn(`Skipping case ${normalizedCaseNumber} - missing petitioner and respondent names`);
             failureCount++;
             failedCases.push(`${normalizedCaseNumber} (missing parties)`);
-            continue;
+            return;
           }
 
           // Extract category from case number if possible
@@ -572,28 +614,12 @@ export default function AdvocateReportPage() {
           // Log the extracted data for debugging
           console.log('Extracted case data:', caseData);
 
+          // PERF: Look up duplicate from the pre-fetched maps instead of querying per case
           let existingCase: any = null;
-          let checkError: any = null;
-
-          // Check for duplicates based on case type using maybeSingle to avoid multi-row errors
           if (uniqueValue) {
-            const column = isNumbered ? 'case_number' : 'sr_number';
-            const result = await supabase
-              .from('cases')
-              .select('*')
-              .eq(column, uniqueValue)
-              .limit(1)
-              .maybeSingle();
-            existingCase = result.data;
-            checkError = result.error;
-          }
-
-          if (checkError && checkError.code !== 'PGRST116' && checkError.code !== 'PGRST123') {
-            // PGRST116 = no rows found, PGRST123 = multiple rows found (we just insert a new one)
-            console.error('Error checking case:', checkError);
-            failureCount++;
-            failedCases.push(`${normalizedCaseNumber} (check error)`);
-            continue;
+            existingCase = isNumbered
+              ? existingByCaseNumber.get(uniqueValue) || null
+              : existingBySrNumber.get(uniqueValue) || null;
           }
 
           // If we still don't have a uniqueness key for unnumbered (no sr_number), insert blindly
@@ -630,7 +656,7 @@ export default function AdvocateReportPage() {
                 }
               }
             }
-            continue;
+            return;
           }
 
           if (existingCase?.id) {
@@ -730,18 +756,19 @@ export default function AdvocateReportPage() {
             } else {
               updateCount++;
 
-              // Create audit logs for each changed field (ensures changed_by is populated)
+              // Create audit logs for all changed fields in a single batched insert
+              // (was N sequential inserts, one per changed field)
               if (updatedCase?.id && changes.length > 0) {
                 try {
-                  for (const change of changes) {
-                    await auditLogsDB.create(
-                      updatedCase.id,
-                      change.field,
-                      String(change.oldValue),
-                      String(change.newValue),
-                      userId // Pass authenticated user ID for changed_by field
-                    );
-                  }
+                  await auditLogsDB.createMany(
+                    changes.map((change) => ({
+                      caseId: updatedCase.id,
+                      field: change.field,
+                      oldValue: change.oldValue,
+                      newValue: change.newValue,
+                      userId,
+                    }))
+                  );
                   console.log(`Updated case ${normalizedCaseNumber} with ${changes.length} field(s)`);
                 } catch (auditError: any) {
                   // Log audit error but don't fail the update
@@ -791,11 +818,20 @@ export default function AdvocateReportPage() {
           failureCount++;
           failedCases.push(`${advCase.caseNumber || 'Unknown'} (${innerError.message})`);
         }
+      };
+
+      // PERF: Process cases in concurrency-limited parallel chunks instead of one at a time.
+      // Chunks run sequentially (bounded DB load); the cases within a chunk run in parallel.
+      const CHUNK_SIZE = 10;
+      for (let i = 0; i < report.caseDetails.length; i += CHUNK_SIZE) {
+        const chunk = report.caseDetails.slice(i, i + CHUNK_SIZE);
+        setFetchProgress(`Adding cases: ${Math.min(i + CHUNK_SIZE, report.caseDetails.length)}/${report.caseDetails.length}...`);
+        await Promise.all(chunk.map(processCase));
       }
 
       const message = `Added: ${successCount}, Updated: ${updateCount}, Failed: ${failureCount}`;
       toast.success(message);
-      
+
       // Log failed cases for debugging
       if (failedCases.length > 0) {
         console.error('Failed cases:', failedCases);
@@ -805,6 +841,7 @@ export default function AdvocateReportPage() {
       toast.error('Bulk add operation failed: ' + error?.message);
     } finally {
       setBulkAddLoading(false);
+      setFetchProgress('');
     }
   };
 
@@ -828,32 +865,32 @@ export default function AdvocateReportPage() {
   const caseDetails = report?.caseDetails || [];
 
   return (
-    <div className="container mx-auto py-6 space-y-6 max-w-6xl">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
+    <div className="container mx-auto py-4 sm:py-6 px-3 sm:px-4 space-y-6 max-w-6xl">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Advocate Report</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Advocate Report</h2>
             <p className="text-gray-600">Fetch all cases for an advocate by code and year.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <input
               type="text"
               placeholder="Advocate Code"
               value={advCode}
               onChange={(e) => setAdvCode(e.target.value)}
-              className="w-36 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full sm:w-36 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <input
               type="number"
               placeholder="Year"
               value={year}
               onChange={(e) => setYear(e.target.value)}
-              className="w-28 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full sm:w-28 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <button
               onClick={fetchReport}
               disabled={loading}
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 w-full sm:w-auto"
             >
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               <span>{loading ? 'Loading...' : 'Fetch Report'}</span>
@@ -873,7 +910,7 @@ export default function AdvocateReportPage() {
 
       {report && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-600 font-semibold">Advocate</p>
               <p className="text-lg font-bold text-gray-900">{report.advName}</p>
@@ -889,14 +926,14 @@ export default function AdvocateReportPage() {
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-900">Case Details</h3>
-              <div className="flex items-center gap-3">
-                <p className="text-sm text-gray-600">Click a case number to open in Case Lookup.</p>
+          <div className="bg-gray-50 px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900">Case Details</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+                <p className="hidden sm:block text-sm text-gray-600">Click a case number to open in Case Lookup.</p>
                 <button
                   onClick={bulkAddAllCases}
                   disabled={bulkAddLoading}
-                  className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                 >
                   {bulkAddLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   <span>{bulkAddLoading ? 'Adding Cases...' : 'Add All Cases'}</span>
@@ -907,12 +944,12 @@ export default function AdvocateReportPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Case Number</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">SR Number</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Petitioner</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Respondent</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Action</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Case Number</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">SR Number</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Petitioner</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Respondent</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Action</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -926,7 +963,7 @@ export default function AdvocateReportPage() {
                         : 'bg-gray-100 text-gray-800';
                     return (
                       <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm">
                           {canOpen ? (
                             <button
                               onClick={() => openInCaseLookup(c.caseNumber)}
@@ -939,15 +976,15 @@ export default function AdvocateReportPage() {
                             <span className="text-gray-500">{c.caseNumber}</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{c.srNumber}</td>
-                        <td className="px-6 py-4 text-sm text-gray-900">{c.petName}</td>
-                        <td className="px-6 py-4 text-sm text-gray-900">{c.resName}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-700">{c.srNumber}</td>
+                        <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-gray-900">{c.petName}</td>
+                        <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-gray-900">{c.resName}</td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusBadge}`}>
                             {c.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           {canOpen ? (
                             <button
                               onClick={() => openInCaseLookup(c.caseNumber)}
@@ -964,7 +1001,7 @@ export default function AdvocateReportPage() {
                   })}
                   {caseDetails.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No cases found</td>
+                      <td colSpan={6} className="px-3 sm:px-6 py-8 text-center text-gray-500">No cases found</td>
                     </tr>
                   )}
                 </tbody>
