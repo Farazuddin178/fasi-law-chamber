@@ -17,14 +17,26 @@ export default function AnalyticsPage() {
 
   const loadCases = async () => {
     try {
-      const { data, error } = await supabase
-        .from('cases')
-        .select('*')
-        .range(0, 99999)
-        .order('filing_date', { ascending: true });
+      const allCases: Case[] = [];
+      const pageSize = 1000;
+      let from = 0;
 
-      if (error) throw error;
-      setCases(data || []);
+      while (true) {
+        const { data, error } = await supabase
+          .from('cases')
+          .select('*')
+          .range(from, from + pageSize - 1)
+          .order('filing_date', { ascending: true });
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+
+        allCases.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+
+      setCases(allCases);
     } catch (error: any) {
       toast.error(error.message || 'Failed to load cases');
     } finally {
