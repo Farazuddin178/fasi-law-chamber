@@ -12,12 +12,12 @@ echo "✓ Python dependencies installed"
 echo ""
 
 echo "Step 2: Installing pnpm..."
-npm install -g pnpm --quiet
+npm install -g pnpm@9 --quiet
 echo "✓ pnpm installed"
 echo ""
 
 echo "Step 3: Installing Node.js dependencies..."
-pnpm install --force
+pnpm install --frozen-lockfile
 echo "✓ Node.js dependencies installed"
 echo ""
 
