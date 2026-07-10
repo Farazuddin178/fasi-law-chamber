@@ -115,6 +115,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('current_user', JSON.stringify(normalizedUser));
       localStorage.setItem('login_log_id', logId);
 
+      // Create Supabase Auth session so auth.uid() works in RLS policies
+      try {
+        await supabase.auth.signInWithPassword({ email, password });
+      } catch {
+        // Non-critical: permissive anon policies ensure data is still accessible
+      }
+
       toast.success('Login successful!');
     } catch (error: any) {
       toast.error(error.message || 'Login failed');
@@ -132,6 +139,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         });
       }
+
+      await supabase.auth.signOut().catch(() => {});
 
       setUser(null);
       setLoginLogId(null);
