@@ -17,7 +17,7 @@ echo "✓ pnpm installed"
 echo ""
 
 echo "Step 3: Installing Node.js dependencies..."
-pnpm install --frozen-lockfile
+pnpm install --force
 echo "✓ Node.js dependencies installed"
 echo ""
 
