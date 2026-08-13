@@ -660,7 +660,7 @@ Generated: ${new Date().toLocaleString()}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold text-gray-500 uppercase">Next Hearing</span>
-                  <span className="font-medium">{(caseData as any).next_hearing_date ? new Date((caseData as any).next_hearing_date).toLocaleDateString() : '-'}</span>
+                  <span className="font-medium">{(caseData as any).hearing_date ? new Date((caseData as any).hearing_date).toLocaleDateString() : '-'}</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold text-gray-500 uppercase">Mention Date</span>

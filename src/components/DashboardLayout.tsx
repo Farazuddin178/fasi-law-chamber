@@ -16,7 +16,6 @@ import {
   Scale,
   HardDrive,
   Github,
-  Mail,
   ChevronLeft,
   ChevronRight,
   Gavel,
@@ -24,7 +23,9 @@ import {
   Calendar,
   UserCircle2,
   BookOpen,
-  CalendarDays
+  CalendarDays,
+  Link2,
+  Megaphone,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import NotificationBell from './NotificationBell';
@@ -75,22 +76,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Tasks', path: '/tasks', icon: <ListTodo className="w-5 h-5" /> },
     { name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> },
     { name: 'Documents', path: '/documents', icon: <FileText className="w-5 h-5" /> },
-    { name: 'Messages', path: '/messages', icon: <Mail className="w-5 h-5" /> },
     { name: 'Notifications', path: '/notifications', icon: <Bell className="w-5 h-5" /> },
-    { name: 'Announcements', path: '/announcements', icon: <Bell className="w-5 h-5" />, adminOnly: true },
+    { name: 'Announcements', path: '/announcements', icon: <Megaphone className="w-5 h-5" />, adminOnly: true },
     { name: 'Analytics', path: '/analytics', icon: <BarChart3 className="w-5 h-5" /> },
     { name: 'Expenses', path: '/expenses', icon: <Receipt className="w-5 h-5" /> },
     { name: 'Users', path: '/users', icon: <Users className="w-5 h-5" />, adminOnly: true },
     { name: 'Storage', path: '/storage', icon: <HardDrive className="w-5 h-5" />, adminOnly: true },
     { name: 'GitHub', path: '/github', icon: <Github className="w-5 h-5" />, adminOnly: true },
-    { name: 'Links', path: '/links', icon: <Bell className="w-5 h-5" /> },
+    { name: 'Links', path: '/links', icon: <Link2 className="w-5 h-5" /> },
     { name: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> },
   ];
 
   const filteredNavItems = navItems.filter(item => {
     // For viewers, only show Analytics, Messages, and Expenses
     if (user?.role === 'viewer') {
-      return ['Analytics', 'Messages', 'Expenses', 'Notifications'].includes(item.name);
+      return ['Analytics', 'Expenses', 'Notifications'].includes(item.name);
     }
     
     // For other users, hide admin-only items if not admin

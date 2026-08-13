@@ -3,6 +3,7 @@ import { supabase, Task, User, Case } from '@/lib/supabase';
 import { ChevronLeft, ChevronRight, Calendar, Clock, Printer, ListChecks } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { BACKEND_URL } from '@/lib/api';
 
 interface CalendarEvent {
   id: string;
@@ -277,11 +278,7 @@ export default function CalendarPage() {
         return;
       }
 
-      const backendURL = window.location.hostname === 'localhost'
-        ? 'http://localhost:5001'
-        : '';
-
-      const apiURL = `${backendURL}/getDailyCauselist?advocateCode=${encodeURIComponent(advocateCode.trim())}&listDate=${encodeURIComponent(listDate)}`;
+      const apiURL = `${BACKEND_URL}/getDailyCauselist?advocateCode=${encodeURIComponent(advocateCode.trim())}&listDate=${encodeURIComponent(listDate)}`;
       const response = await fetch(apiURL, { method: 'GET', headers: { 'Accept': 'application/json' } });
 
       if (!response.ok) {

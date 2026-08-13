@@ -24,14 +24,14 @@ export default function AnalyticsPage() {
       while (true) {
         const { data, error } = await supabase
           .from('cases')
-          .select('*')
-          .range(from, from + pageSize - 1)
-          .order('filing_date', { ascending: true });
+          .select('id,status,filing_date,category,created_at')
+          .order('created_at', { ascending: false })
+          .range(from, from + pageSize - 1);
 
         if (error) throw error;
         if (!data || data.length === 0) break;
 
-        allCases.push(...data);
+        allCases.push(...(data as unknown as Case[]));
         if (data.length < pageSize) break;
         from += pageSize;
       }
@@ -46,9 +46,12 @@ export default function AnalyticsPage() {
 
   // Filter cases
   const filteredCases = cases.filter(c => {
-    if (yearFilter !== 'all' && c.filing_date) {
-      const year = new Date(c.filing_date).getFullYear().toString();
-      if (year !== yearFilter) return false;
+    if (yearFilter !== 'all') {
+      const dateStr = c.filing_date || c.created_at;
+      if (dateStr) {
+        const year = new Date(dateStr).getFullYear().toString();
+        if (year !== yearFilter) return false;
+      }
     }
     if (categoryFilter !== 'all' && c.category !== categoryFilter) return false;
     return true;
@@ -68,11 +71,12 @@ export default function AnalyticsPage() {
     color: statusColors[status] || '#6b7280',
   }));
 
-  // Cases by year - dynamically handle all status values
+  // Cases by year — use filing_date, fall back to created_at so every case is counted
   const casesByYear: { [key: string]: { [status: string]: number } } = {};
   filteredCases.forEach(c => {
-    if (c.filing_date && c.status) {
-      const year = new Date(c.filing_date).getFullYear().toString();
+    const dateStr = c.filing_date || c.created_at;
+    if (dateStr && c.status) {
+      const year = new Date(dateStr).getFullYear().toString();
       if (!casesByYear[year]) {
         casesByYear[year] = {};
         uniqueStatuses.forEach(status => {
@@ -107,8 +111,9 @@ export default function AnalyticsPage() {
 
   const targetYear = yearFilter === 'all' ? currentYear : parseInt(yearFilter);
   filteredCases.forEach(c => {
-    if (c.filing_date) {
-      const date = new Date(c.filing_date);
+    const dateStr = c.filing_date || c.created_at;
+    if (dateStr) {
+      const date = new Date(dateStr);
       if (date.getFullYear() === targetYear) {
         const month = months[date.getMonth()];
         casesByMonth[month]++;
@@ -155,9 +160,8 @@ export default function AnalyticsPage() {
 
   // Get available years
   const availableYears = [...new Set(cases.map(c => {
-    if (c.filing_date) {
-      return new Date(c.filing_date).getFullYear().toString();
-    }
+    const dateStr = c.filing_date || c.created_at;
+    if (dateStr) return new Date(dateStr).getFullYear().toString();
     return null;
   }).filter(Boolean))].sort().reverse();
 

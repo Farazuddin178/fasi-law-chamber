@@ -36,7 +36,34 @@ _csis_session.mount("https://", _csis_adapter)
 _csis_session.mount("http://", _csis_adapter)
 
 app = Flask(__name__, static_folder=None)
-CORS(app)
+
+# ---------------------------------------------------------------------------
+# CORS — allow the web build AND Capacitor native WebView origins.
+#
+#  capacitor://localhost   → iOS WKWebView default origin
+#  http://localhost        → Android WebView default origin
+#  ionic://localhost       → Ionic/Capacitor alternative origin
+#
+# In production also add your Vercel / Render frontend URL below.
+# ---------------------------------------------------------------------------
+_ALLOWED_ORIGINS = [
+    "capacitor://localhost",
+    "http://localhost",
+    "http://localhost:5173",   # Vite dev server
+    "http://localhost:4173",   # Vite preview
+    "http://127.0.0.1:5173",
+    "ionic://localhost",
+    # Add your deployed frontend URL here, e.g.:
+    # "https://your-app.vercel.app",
+]
+
+CORS(
+    app,
+    origins=_ALLOWED_ORIGINS,
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+)
 
 # Import notification routes and cron service
 try:

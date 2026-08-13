@@ -1,10 +1,11 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, ExternalLink, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase, Case } from '@/lib/supabase';
 import { auditLogsDB } from '@/lib/database';
 import { useAuth } from '@/contexts/AuthContext';
+import { BACKEND_URL } from '@/lib/api';
 
 interface AdvCase {
   caseNumber: string;
@@ -83,13 +84,9 @@ export default function AdvocateReportPage() {
     setFetchProgress('');
     setReport(null);
     try {
-      const backendURL = window.location.hostname === 'localhost' 
-        ? 'http://localhost:5001'
-        : ''; // Empty string = use same domain (current page's domain)
-      
-      // === STEP 1: Fetch advocate report (case list summary) ===
+      // Use centralized BACKEND_URL from @/lib/api (works on web and Capacitor native)
       setFetchProgress('Fetching advocate report...');
-      const url = `${backendURL}/getAdvReport?advcode=${encodeURIComponent(advCode.trim())}&year=${encodeURIComponent(year.trim())}`;
+      const url = `${BACKEND_URL}/getAdvReport?advcode=${encodeURIComponent(advCode.trim())}&year=${encodeURIComponent(year.trim())}`;
       const resp = await fetch(url);
       const contentType = resp.headers.get('content-type') || '';
       const bodyText = await resp.text();
@@ -140,7 +137,7 @@ export default function AdvocateReportPage() {
 
         const fetchBatch = async (batch: typeof numberedCases) => {
           try {
-            const batchResp = await fetch(`${backendURL}/getBatchCaseDetails`, {
+            const batchResp = await fetch(`${BACKEND_URL}/getBatchCaseDetails`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ cases: batch }),
@@ -226,11 +223,8 @@ export default function AdvocateReportPage() {
       if (!parsed) return null;
 
       const { mtype, mno, myear } = parsed;
-      const backendURL = window.location.hostname === 'localhost'
-        ? 'http://localhost:5001'
-        : '';
 
-      const url = `${backendURL}/getCaseDetails?mtype=${encodeURIComponent(mtype)}&mno=${encodeURIComponent(mno)}&myear=${encodeURIComponent(myear)}`;
+      const url = `${BACKEND_URL}/getCaseDetails?mtype=${encodeURIComponent(mtype)}&mno=${encodeURIComponent(mno)}&myear=${encodeURIComponent(myear)}`;
       const resp = await fetch(url);
       const bodyText = await resp.text();
       const contentType = resp.headers.get('content-type') || '';
@@ -405,6 +399,10 @@ export default function AdvocateReportPage() {
       filing_date: convertDateFormat(result.primary?.filingdate),
       registration_date: convertDateFormat(result.primary?.registrationdate),
       listing_date: convertDateFormat(result.primary?.listingdate),
+      // hearing_date = next scheduled hearing (same source as listing_date for HC cases)
+      hearing_date: convertDateFormat(result.primary?.listingdate || result.primary?.hearingdate),
+      // mention_date = last return/mention date
+      mention_date: convertDateFormat(result.primary?.returndate || result.primary?.mentiondate),
       disp_date: convertDateFormat(result.primary?.disposaldate),
       disp_type: result.primary?.disposaltype && result.primary.disposaltype !== '-' ? result.primary.disposaltype : null,
       purpose: result.primary?.purpose || '',
@@ -427,418 +425,181 @@ export default function AdvocateReportPage() {
   };
 
   const bulkAddAllCases = async () => {
-    if (!report || !report.caseDetails || report.caseDetails.length === 0) {
-      toast.error('No cases to add');
-      return;
-    }
-
-    // CRITICAL FIX: Ensure we have a valid userId BEFORE bulk adding
-    if (!userId) {
-      toast.error('Please login to add cases');
-      return;
-    }
+    if (!report?.caseDetails?.length) { toast.error('No cases to add'); return; }
+    if (!userId) { toast.error('Please login to add cases'); return; }
 
     setBulkAddLoading(true);
-    let successCount = 0;
-    let updateCount = 0;
-    let failureCount = 0;
-    const failedCases: string[] = []; // Track which cases failed
+    const allAuditEntries: Parameters<typeof auditLogsDB.createMany>[0] = [];
 
     try {
-      // PERF: Pre-fetch all potentially-existing cases in 2 bulk queries instead of
-      // running one duplicate-check query per case (was N sequential round trips).
-      const caseNumbers = Array.from(new Set(
-        report.caseDetails
-          .map((c) => c.caseNumber)
-          .filter((v) => !!v && v.toLowerCase() !== 'not numbered')
-      ));
-      const srNumbers = Array.from(new Set(
-        report.caseDetails.map((c) => c.srNumber).filter((v) => !!v)
-      ));
+      // STEP 1: Pre-fetch existing records in 2 bulk queries (no per-case round-trips)
+      setFetchProgress('Checking existing cases…');
+      const caseNumbers = [...new Set(
+        report.caseDetails.map(c => c.caseNumber).filter(v => !!v && v.toLowerCase() !== 'not numbered')
+      )];
+      const srNumbers = [...new Set(report.caseDetails.map(c => c.srNumber).filter(Boolean))];
 
-      const [caseNumberResult, srNumberResult] = await Promise.all([
-        caseNumbers.length > 0
-          ? supabase.from('cases').select('*').in('case_number', caseNumbers)
-          : null,
-        srNumbers.length > 0
-          ? supabase.from('cases').select('*').in('sr_number', srNumbers)
-          : null,
+      const [cnRes, srRes] = await Promise.all([
+        caseNumbers.length ? supabase.from('cases').select('*').in('case_number', caseNumbers) : null,
+        srNumbers.length  ? supabase.from('cases').select('*').in('sr_number',   srNumbers)   : null,
       ]);
 
-      if (caseNumberResult?.error) console.error('Error pre-fetching existing cases by case_number:', caseNumberResult.error);
-      if (srNumberResult?.error) console.error('Error pre-fetching existing cases by sr_number:', srNumberResult.error);
+      const existingByCN = new Map<string, any>();
+      const existingBySR = new Map<string, any>();
+      (cnRes?.data || []).forEach((c: any) => c.case_number && existingByCN.set(c.case_number, c));
+      (srRes?.data  || []).forEach((c: any) => c.sr_number   && existingBySR.set(c.sr_number,  c));
 
-      const existingByCaseNumber = new Map<string, any>();
-      const existingBySrNumber = new Map<string, any>();
-      (caseNumberResult?.data || []).forEach((c: any) => {
-        if (c.case_number) existingByCaseNumber.set(c.case_number, c);
-      });
-      (srNumberResult?.data || []).forEach((c: any) => {
-        if (c.sr_number) existingBySrNumber.set(c.sr_number, c);
-      });
+      // STEP 2: Build all payloads — use pre-enriched data, NO per-case fetches
+      setFetchProgress('Building case payloads…');
+      const now = new Date().toISOString();
+      const newRows:    any[] = [];
+      const updateJobs: (() => Promise<{ id: string; changes: any[] } | null>)[] = [];
+      let skipped = 0;
 
-      const processCase = async (advCase: AdvCase) => {
-        try {
-          const isNumbered = !!(advCase.caseNumber && advCase.caseNumber.toLowerCase() !== 'not numbered');
-          const uniqueValue = isNumbered ? advCase.caseNumber : advCase.srNumber;
+      for (const advCase of report.caseDetails) {
+        const rawCase = advCase as any;
+        const isNumbered = !!(advCase.caseNumber && advCase.caseNumber.toLowerCase() !== 'not numbered');
+        const normalizedCN = isNumbered
+          ? advCase.caseNumber
+          : advCase.srNumber ? ('Not Numbered - ' + advCase.srNumber) : 'Not Numbered - Auto';
 
-          // If table requires case_number, set a stable placeholder for unnumbered
-          const normalizedCaseNumber = isNumbered
-            ? advCase.caseNumber
-            : (advCase.srNumber ? `Not Numbered - ${advCase.srNumber}` : 'Not Numbered - Auto');
+        const petName = advCase.petName || rawCase.pname || rawCase.petitioner || '';
+        const resName = advCase.resName || rawCase.rname || rawCase.respondent || '';
+        if (!petName && !resName) { skipped++; continue; }
 
-          // Normalize data for insert/update
-          const rawCase = advCase as any;
-          
-          // Extract all possible date fields with validation
-          const filingDate = parseIndianDate(rawCase.filingDate || rawCase.dt_reg || rawCase.reg_date || rawCase.date_filed || rawCase.filing_date || rawCase.dt_filing);
-          const regDate = parseIndianDate(rawCase.registrationDate || rawCase.regDate || rawCase.dt_reg);
-          const listingDate = parseIndianDate(rawCase.listingDate || rawCase.nextHearingDate || rawCase.date_listing);
-          
-          // Robust field extraction with fallbacks - ensure non-empty strings
-          const petName = advCase.petName || rawCase.pname || rawCase.pet_name || rawCase.petitioner_name || rawCase.petitioner || '';
-          const resName = advCase.resName || rawCase.rname || rawCase.res_name || rawCase.respondent_name || rawCase.respondent || '';
-          const statusStr = (advCase.status || rawCase.case_status || rawCase.caseStatus || '').toUpperCase();
-          
-          // Validate essential fields before proceeding
-          if (!petName && !resName) {
-            console.warn(`Skipping case ${normalizedCaseNumber} - missing petitioner and respondent names`);
-            failureCount++;
-            failedCases.push(`${normalizedCaseNumber} (missing parties)`);
-            return;
-          }
+        // Use pre-enriched fullDetails — never fetch individually during bulk add
+        const fullDetails: any = rawCase.fullDetails || null;
+        const transformed: any = fullDetails ? transformCaseDetails(fullDetails) : {};
 
-          // Extract category from case number if possible
-          let category = null;
-          if (isNumbered) {
-            const match = normalizedCaseNumber.match(/^([A-Z]+)/i);
-            if (match) category = match[1].toUpperCase();
-          }
+        const statusStr = (advCase.status || '').toUpperCase();
+        const caseStatus: 'pending' | 'disposed' =
+          ['DISPOSED', 'DISMISSED', 'ALLOWED', 'GRANTED', 'ALLOWED-WITHDRAWN'].includes(statusStr)
+            ? 'disposed' : 'pending';
 
-          // FOR NUMBERED CASES: Use pre-fetched fullDetails if available, otherwise fetch on demand
-          let fullDetails: any = null;
-          let transformed: any = {};
+        let caseData: any = {
+          case_number:         normalizedCN,
+          sr_number:           advCase.srNumber || null,
+          cnr:                 rawCase.cnr || rawCase.cnrNo || null,
+          primary_petitioner:  petName || 'Unknown',
+          primary_respondent:  resName || 'Unknown',
+          petitioner_adv:      rawCase.petAdvocate || rawCase.petitioner_adv || null,
+          respondent_adv:      rawCase.resAdvocate || rawCase.respondent_adv || null,
+          status:              caseStatus,
+          filing_date:         parseIndianDate(rawCase.filingDate || rawCase.filing_date),
+          registration_date:   parseIndianDate(rawCase.registrationDate || rawCase.regDate),
+          listing_date:        parseIndianDate(rawCase.listingDate || rawCase.nextHearingDate),
+          hearing_date:        parseIndianDate(rawCase.listingDate || rawCase.nextHearingDate || rawCase.hearingDate || rawCase.hearing_date),
+          mention_date:        parseIndianDate(rawCase.returnDate || rawCase.mentionDate || rawCase.mention_date || rawCase.return_date),
+          category:            rawCase.category || (isNumbered ? (normalizedCN.match(/^([A-Z]+)/i)?.[1]?.toUpperCase() || null) : null),
+          district:            rawCase.district || null,
+          purpose:             rawCase.purpose || rawCase.stage || null,
+          jud_name:            rawCase.judges || rawCase.judgeName || null,
+          petitioners:         transformed.transformedPetitioners || (petName ? [{ s_no: 1, name: petName }] : []),
+          respondents:         transformed.transformedRespondents || (resName ? [{ r_no: 1, name: resName }] : []),
+          ia_details:          transformed.transformedIADetails    || [],
+          ia_sr_details:       transformed.transformedIASRDetails  || [],
+          usr_details:         transformed.transformedUSRDetails   || [],
+          submission_dates:    transformed.transformedUSRSRDetails || [],
+          orders:              transformed.transformedOrders       || [],
+          connected_matters:   transformed.transformedConnectedMatters || [],
+          vakalath:            transformed.transformedVakalath     || [],
+          lower_court_details: transformed.transformedLowerCourt  || [],
+          other_documents:     transformed.transformedCaseHistory  || [],
+          prayer:              rawCase.prayer || fullDetails?.prayer?.prayer || null,
+          created_by:          userId,
+        };
 
-          if (isNumbered) {
-            // Prefer pre-fetched details from the enrichment phase
-            if ((advCase as any).fullDetails) {
-              fullDetails = (advCase as any).fullDetails;
-              console.log(`Using pre-fetched details for ${normalizedCaseNumber}`);
-            } else {
-              // Fallback: fetch individually (slower, but ensures we try)
-              console.log(`No pre-fetched details for ${normalizedCaseNumber}, fetching individually...`);
-              fullDetails = await fetchCaseDetails(normalizedCaseNumber);
-            }
-            if (fullDetails) {
-              transformed = transformCaseDetails(fullDetails);
-            }
-          }
-
-          // Extract all available fields from the API response - NORMALIZE all field names
-          const normalizedConnectedMatters = Array.isArray(rawCase.connected || rawCase.connected_matters)
-            ? (rawCase.connected || rawCase.connected_matters).map((cm: any) => {
-                if (!cm) return { case_number: '' };
-                if (typeof cm === 'string') return { case_number: cm };
-                if (typeof cm === 'number') return { case_number: String(cm) };
-                // Normalize: extract case_number from any field name variation and store ONLY case_number
-                const caseNum = 
-                  cm.case_number ||
-                  cm.connectedCaseno ||
-                  cm.connected_case_no ||
-                  cm.connected_case ||
-                  cm.caseNumber ||
-                  cm.mainno ||
-                  '';
-                return { case_number: String(caseNum) };
-              })
-            : [];
-
-          const fileUrlRaw = rawCase.fileURL || fullDetails?.primary?.fileURL || '';
-          const fileUrl = fileUrlRaw ? `https://csis.tshc.gov.in/${String(fileUrlRaw).replace(/^\/+/, '')}` : null;
-
-          let caseData: Partial<Case> = {
-            case_number: normalizedCaseNumber,
-            sr_number: advCase.srNumber || rawCase.sr_no || rawCase.srNumber || rawCase.sr_number || null,
-            cnr: rawCase.cnr || rawCase.cnrNo || rawCase.cnrno || null,
-            primary_petitioner: petName || 'Unknown',
-            primary_respondent: resName || 'Unknown',
-            petitioner_adv: rawCase.petAdvocate || rawCase.petitionerAdv || rawCase.petitioner_adv || null,
-            respondent_adv: rawCase.resAdvocate || rawCase.respondentAdv || rawCase.respondent_adv || null,
-            status: ['DISPOSED', 'DISMISSED', 'ALLOWED', 'GRANTED', 'ALLOWED-WITHDRAWN'].includes(statusStr) ? 'disposed' : 'pending',
-            filing_date: filingDate,
-            registration_date: regDate || filingDate,
-            listing_date: listingDate,
-            category: fullDetails?.category?.category || category,
-            sub_category: fullDetails?.category?.subCategory || null,
-            sub_sub_category: fullDetails?.category?.subSubCategory || null,
-            district: rawCase.district || fullDetails?.primary?.district || null,
-            purpose: rawCase.purpose || rawCase.stage || fullDetails?.primary?.purpose || null,
-            jud_name: rawCase.judges || rawCase.judgeName || rawCase.honbleJudges || fullDetails?.primary?.judges || null,
-            disp_date: parseIndianDate(fullDetails?.primary?.disposaldate) || null,
-            disp_type: fullDetails?.primary?.disposaltype || null,
-
-            
-            // CRITICAL FIX: Use full details from backend if available, fallback to basic fields
-            petitioners: transformed.transformedPetitioners || rawCase.petitioners || (petName ? [{ s_no: 1, name: petName }] : []),
-            respondents: transformed.transformedRespondents || rawCase.respondents || (resName ? [{ r_no: 1, name: resName }] : []),
-            ia_details: transformed.transformedIADetails || rawCase.ia || rawCase.ia_details || [],
-            ia_sr_details: transformed.transformedIASRDetails || rawCase.iasr || [],
-            usr_details: transformed.transformedUSRDetails || rawCase.usr || rawCase.usr_details || [],
-            submission_dates: transformed.transformedUSRSRDetails || rawCase.usrsr || [],
-            orders: transformed.transformedOrders || rawCase.orderdetail || rawCase.orders || [],
-            connected_matters: transformed.transformedConnectedMatters || normalizedConnectedMatters || [],
-            vakalath: transformed.transformedVakalath || rawCase.vakalath || rawCase.vakalathParams || [],
-            lower_court_details: transformed.transformedLowerCourt || rawCase.lowerCourt || rawCase.lower_court_details || null,
-            other_documents: transformed.transformedCaseHistory || rawCase.casehistory || [],
-            prayer: rawCase.prayer || fullDetails?.prayer?.prayer || null,
-            created_by: userId, // Use userId directly - database.ts handles fallback
-          };
-
-          if (isNumbered && fullDetails) {
-            const fullCaseData = buildCaseDataFromDetails(fullDetails, transformed);
-            caseData = {
-              ...caseData,
-              ...fullCaseData,
-              case_number: fullCaseData.case_number || normalizedCaseNumber,
-              sr_number: fullCaseData.sr_number || caseData.sr_number,
-              created_by: userId
-            };
-
-            if (!fullCaseData.petitioners?.length && caseData.primary_petitioner) {
-              caseData.petitioners = [{ s_no: 1, name: caseData.primary_petitioner }];
-            }
-            if (!fullCaseData.respondents?.length && caseData.primary_respondent) {
-              caseData.respondents = [{ r_no: 1, name: caseData.primary_respondent }];
-            }
-          }
-          // Log the extracted data for debugging
-          console.log('Extracted case data:', caseData);
-
-          // PERF: Look up duplicate from the pre-fetched maps instead of querying per case
-          let existingCase: any = null;
-          if (uniqueValue) {
-            existingCase = isNumbered
-              ? existingByCaseNumber.get(uniqueValue) || null
-              : existingBySrNumber.get(uniqueValue) || null;
-          }
-
-          // If we still don't have a uniqueness key for unnumbered (no sr_number), insert blindly
-          if (!uniqueValue) {
-            const { data: insertedCase, error: insertBlindError } = await supabase
-              .from('cases')
-              .insert([{
-                ...caseData,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              }])
-              .select()
-              .single();
-
-            if (insertBlindError) {
-              console.error('Error inserting case (no unique key):', insertBlindError);
-              failureCount++;
-              failedCases.push(`${normalizedCaseNumber} (insert error)`);
-            } else {
-              successCount++;
-              
-              // Create audit log for new case insertion with proper changed_by
-              if (insertedCase?.id) {
-                try {
-                  await auditLogsDB.create(
-                    insertedCase.id,
-                    'case_added',
-                    '',
-                    `Case added from Advocate Report for ${report.advName}`,
-                    userId // Pass authenticated user ID for changed_by field
-                  );
-                } catch (auditError: any) {
-                  console.error('Audit log creation failed:', auditError);
-                }
-              }
-            }
-            return;
-          }
-
-          if (existingCase?.id) {
-            // ENHANCED: Merge logic - only update empty fields or fields that have changed
-            const mergedCaseData: Partial<Case> = { ...caseData };
-            const changes: Array<{ field: string; oldValue: any; newValue: any }> = [];
-
-            // For each field in the new data, only keep it if:
-            // 1. The old field is empty/null/undefined, OR
-            // 2. The new field is different and not empty
-            const fieldsToMerge = [
-              'sr_number',
-              'cnr',
-              'primary_petitioner',
-              'primary_respondent',
-              'petitioner_adv',
-              'respondent_adv',
-              'status',
-              'filing_date',
-              'registration_date',
-              'listing_date',
-              'category',
-              'district',
-              'purpose',
-              'jud_name',
-            ];
-
-            for (const field of fieldsToMerge) {
-              const oldValue = (existingCase as any)[field];
-              const newValue = (caseData as any)[field];
-
-              // Only update if new value is not empty AND (old is empty OR values differ)
-              if (newValue && (oldValue === null || oldValue === undefined || oldValue === '' || oldValue !== newValue)) {
-                changes.push({
-                  field,
-                  oldValue: oldValue || '(empty)',
-                  newValue: newValue,
-                });
-                mergedCaseData[field as keyof Case] = newValue;
-              }
-            }
-
-            // Merge arrays/objects when existing is empty
-            const arrayFields = [
-              'petitioners',
-              'respondents',
-              'ia_details',
-              'ia_sr_details',
-              'usr_details',
-              'submission_dates',
-              'orders',
-              'connected_matters',
-              'vakalath',
-              'other_documents',
-              'lower_court_details'
-            ];
-
-            for (const field of arrayFields) {
-              const oldArr = (existingCase as any)[field];
-              const newArr = (caseData as any)[field];
-              const oldLen = Array.isArray(oldArr) ? oldArr.length : 0;
-              const newLen = Array.isArray(newArr) ? newArr.length : 0;
-              if (newLen > 0 && oldLen === 0) {
-                mergedCaseData[field as keyof Case] = newArr;
-                changes.push({
-                  field,
-                  oldValue: '(empty)',
-                  newValue: `Added ${newLen} item(s)`
-                });
-              }
-            }
-
-            if (!existingCase.prayer && caseData.prayer) {
-              mergedCaseData.prayer = caseData.prayer;
-              changes.push({
-                field: 'prayer',
-                oldValue: '(empty)',
-                newValue: 'Added prayer'
-              });
-            }
-
-            // Update existing case with merged data
-            const { data: updatedCase, error: updateError } = await supabase
-              .from('cases')
-              .update({
-                ...mergedCaseData,
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', existingCase.id)
-              .select()
-              .single();
-
-            if (updateError) {
-              console.error('Error updating case:', updateError);
-              failureCount++;
-              failedCases.push(`${normalizedCaseNumber} (update error)`);
-            } else {
-              updateCount++;
-
-              // Create audit logs for all changed fields in a single batched insert
-              // (was N sequential inserts, one per changed field)
-              if (updatedCase?.id && changes.length > 0) {
-                try {
-                  await auditLogsDB.createMany(
-                    changes.map((change) => ({
-                      caseId: updatedCase.id,
-                      field: change.field,
-                      oldValue: change.oldValue,
-                      newValue: change.newValue,
-                      userId,
-                    }))
-                  );
-                  console.log(`Updated case ${normalizedCaseNumber} with ${changes.length} field(s)`);
-                } catch (auditError: any) {
-                  // Log audit error but don't fail the update
-                  console.error(`Audit log creation failed for case ${updatedCase.id}:`, auditError);
-                }
-              }
-            }
-          } else {
-            // Insert new case (numbered or unnumbered)
-            const { data: insertedCase, error: insertError } = await supabase
-              .from('cases')
-              .insert([{
-                ...caseData,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              }])
-              .select()
-              .single();
-
-            if (insertError) {
-              console.error('Error inserting case:', insertError);
-              failureCount++;
-              failedCases.push(`${normalizedCaseNumber} (insert error: ${insertError.message})`);
-            } else {
-              successCount++;
-              
-              // Create audit log for new case insertion with proper changed_by
-              if (insertedCase?.id) {
-                try {
-                  await auditLogsDB.create(
-                    insertedCase.id,
-                    'case_added',
-                    '',
-                    `Case added from Advocate Report for ${report.advName}`,
-                    userId // Pass authenticated user ID for changed_by field
-                  );
-                } catch (auditError: any) {
-                  // Log audit error but don't fail the case insertion
-                  console.error(`Audit log creation failed for case ${insertedCase.id}:`, auditError);
-                }
-              }
-            }
-          }
-        } catch (innerError: any) {
-          // Catch individual case processing errors
-          console.error(`Error processing case:`, innerError);
-          failureCount++;
-          failedCases.push(`${advCase.caseNumber || 'Unknown'} (${innerError.message})`);
+        if (fullDetails) {
+          const fd = buildCaseDataFromDetails(fullDetails, transformed);
+          caseData = { ...caseData, ...fd, case_number: fd.case_number || normalizedCN, created_by: userId };
+          if (!caseData.petitioners?.length && caseData.primary_petitioner)
+            caseData.petitioners = [{ s_no: 1, name: caseData.primary_petitioner }];
+          if (!caseData.respondents?.length && caseData.primary_respondent)
+            caseData.respondents = [{ r_no: 1, name: caseData.primary_respondent }];
         }
-      };
 
-      // PERF: Process cases in concurrency-limited parallel chunks instead of one at a time.
-      // Chunks run sequentially (bounded DB load); the cases within a chunk run in parallel.
-      const CHUNK_SIZE = 10;
-      for (let i = 0; i < report.caseDetails.length; i += CHUNK_SIZE) {
-        const chunk = report.caseDetails.slice(i, i + CHUNK_SIZE);
-        setFetchProgress(`Adding cases: ${Math.min(i + CHUNK_SIZE, report.caseDetails.length)}/${report.caseDetails.length}...`);
-        await Promise.all(chunk.map(processCase));
+        const uniqueKey = isNumbered ? advCase.caseNumber : advCase.srNumber;
+        const existing  = uniqueKey
+          ? (isNumbered ? existingByCN.get(uniqueKey) : existingBySR.get(uniqueKey)) || null
+          : null;
+
+        if (!uniqueKey || !existing) {
+          newRows.push({ ...caseData, created_at: now, updated_at: now });
+        } else {
+          // Capture by value to avoid closure over loop variable
+          const snapExisting = existing;
+          const snapData     = caseData;
+          updateJobs.push(async () => {
+            const scalarFields = [
+              'sr_number','cnr','primary_petitioner','primary_respondent',
+              'petitioner_adv','respondent_adv','status','filing_date',
+              'registration_date','listing_date','hearing_date','mention_date',
+              'category','district','purpose','jud_name',
+            ];
+            const arrFields = [
+              'petitioners','respondents','ia_details','ia_sr_details','usr_details',
+              'submission_dates','orders','connected_matters','vakalath',
+              'other_documents','lower_court_details',
+            ];
+            const patch:   any = {};
+            const changes: any[] = [];
+            for (const f of scalarFields) {
+              const ov = snapExisting[f]; const nv = snapData[f];
+              if (nv && (ov === null || ov === undefined || ov === '' || ov !== nv))
+                { patch[f] = nv; changes.push({ field: f, oldValue: ov ?? '(empty)', newValue: nv }); }
+            }
+            for (const f of arrFields) {
+              const oa = snapExisting[f]; const na = snapData[f];
+              if (Array.isArray(na) && na.length > 0 && (!Array.isArray(oa) || oa.length === 0))
+                { patch[f] = na; changes.push({ field: f, oldValue: '(empty)', newValue: na.length + ' items' }); }
+            }
+            if (!snapExisting.prayer && snapData.prayer)
+              { patch.prayer = snapData.prayer; changes.push({ field: 'prayer', oldValue: '(empty)', newValue: 'added' }); }
+            if (!Object.keys(patch).length) return null;
+            const { data: updated, error } = await supabase
+              .from('cases').update({ ...patch, updated_at: now }).eq('id', snapExisting.id).select('id').single();
+            if (error) { console.error('Update error:', error); return null; }
+            return { id: updated.id, changes };
+          });
+        }
       }
 
-      const message = `Added: ${successCount}, Updated: ${updateCount}, Failed: ${failureCount}`;
-      toast.success(message);
-
-      // Log failed cases for debugging
-      if (failedCases.length > 0) {
-        console.error('Failed cases:', failedCases);
+      // STEP 3: Batch INSERT all new rows (100 per call instead of 1 per case)
+      setFetchProgress('Inserting ' + newRows.length + ' new cases…');
+      let insertedCount = 0;
+      for (let i = 0; i < newRows.length; i += 100) {
+        const { data: inserted, error } = await supabase
+          .from('cases').insert(newRows.slice(i, i + 100)).select('id');
+        if (error) { console.error('Batch insert error:', error); }
+        else {
+          insertedCount += inserted?.length || 0;
+          (inserted || []).forEach((r: any) => allAuditEntries.push({
+            caseId: r.id, field: 'case_added',
+            oldValue: '', newValue: 'Added from Advocate Report – ' + report.advName, userId,
+          }));
+        }
       }
-    } catch (error: any) {
-      console.error('Bulk add operation error:', error);
-      toast.error('Bulk add operation failed: ' + error?.message);
+
+      // STEP 4: Run all updates fully in parallel
+      setFetchProgress('Updating ' + updateJobs.length + ' existing cases…');
+      const updateResults = await Promise.all(updateJobs.map(fn => fn()));
+      let updatedCount = 0;
+      for (const res of updateResults) {
+        if (!res) continue;
+        updatedCount++;
+        res.changes.forEach(ch => allAuditEntries.push({
+          caseId: res.id, field: ch.field, oldValue: ch.oldValue, newValue: ch.newValue, userId,
+        }));
+      }
+
+      // STEP 5: Single batch audit write (was one write per field per case)
+      if (allAuditEntries.length > 0)
+        await auditLogsDB.createMany(allAuditEntries).catch(e => console.error('Audit batch failed (non-fatal):', e));
+
+      toast.success('Done — Added: ' + insertedCount + ', Updated: ' + updatedCount + ', Skipped: ' + skipped);
+    } catch (err: any) {
+      console.error('Bulk add error:', err);
+      toast.error('Bulk add failed: ' + err?.message);
     } finally {
       setBulkAddLoading(false);
       setFetchProgress('');

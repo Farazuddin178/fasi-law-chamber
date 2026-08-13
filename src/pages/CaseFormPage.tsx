@@ -313,6 +313,8 @@ export default function CaseFormPage() {
         registration_date: formData.registration_date || null,
         listing_date: formData.listing_date || null,
         return_date: formData.return_date || null,
+        hearing_date: formData.hearing_date || null,
+        mention_date: formData.mention_date || null,
         disp_date: formData.disp_date || null,
         disp_type: formData.disp_type || null,
         prayer: formData.prayer || null,

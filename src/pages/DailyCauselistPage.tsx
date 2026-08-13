@@ -3,6 +3,7 @@ import { Search, Calendar, Gavel, Building2, User, MapPin, FileText, Clock, Aler
 import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { BACKEND_URL } from '@/lib/api'
 import { 
   Card, 
   CardContent, 
@@ -386,21 +387,9 @@ export default function DailyCauselistPage() {
     setError(null)
     
     try {
-      // Determine backend URL based on environment
-      let backendURL = ''
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        // Local development
-        backendURL = 'http://localhost:5001'
-      } else if (window.location.hostname.includes('render.com') || window.location.hostname.includes('herokuapp.com')) {
-        // Deployment environment - use relative URL (same domain)
-        backendURL = ''
-      } else {
-        // Production - use relative URL
-        backendURL = ''
-      }
-
-      const apiURL = `${backendURL}/getDailyCauselist?advocateCode=${encodeURIComponent(advocateCode)}&listDate=${encodeURIComponent(causeDate)}`
-      console.debug('[fetchData] Requesting from:', apiURL, 'Backend URL:', backendURL || 'relative')
+      // Use centralized BACKEND_URL from @/lib/api (works on web and Capacitor native)
+      const apiURL = `${BACKEND_URL}/getDailyCauselist?advocateCode=${encodeURIComponent(advocateCode)}&listDate=${encodeURIComponent(causeDate)}`
+      console.debug('[fetchData] Requesting from:', apiURL, 'Backend URL:', BACKEND_URL || 'relative')
       
       const response = await fetch(apiURL, { 
         method: 'GET',

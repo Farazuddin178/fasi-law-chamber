@@ -4,7 +4,7 @@
  */
 
 import { supabase, Case, Task, User, TaskComment, Document, Expense, Court, TrackedCase, CaseEventRecord } from './supabase';
-import toast from 'react-hot-toast';
+import { BACKEND_URL } from './api';
 
 // ============================================================================
 // CASES OPERATIONS
@@ -995,11 +995,8 @@ export const auditLogsDB = {
 // NOTIFICATION HELPER - Backend Integration
 // ============================================================================
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (
-  typeof window !== 'undefined' && window.location.origin.includes('render.com')
-    ? window.location.origin
-    : 'http://localhost:5001'
-);
+// BACKEND_URL is imported from ./api — works for web AND Capacitor native shells
+
 
 export const notificationHelpers = {
   // Send task assignment notification

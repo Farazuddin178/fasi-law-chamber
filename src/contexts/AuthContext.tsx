@@ -2,12 +2,12 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, supabase } from '@/lib/supabase';
 import { getFCMToken, setupMessageListener } from '@/lib/firebase';
 import { notificationService } from '@/lib/notificationService';
+import { useCapacitorPush } from '@/hooks/useCapacitorPush';
 import toast from 'react-hot-toast';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login_log_id: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -19,6 +19,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loginLogId, setLoginLogId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // ── Capacitor native push notifications ─────────────────────────────────
+  // On native iOS/Android this requests permission + stores the device token.
+  // On web this is a no-op (the Firebase Web SDK path below handles it).
+  useCapacitorPush((user as any)?.id ?? null);
 
   useEffect(() => {
     // Check for existing session
@@ -180,7 +185,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         loading,
-        login_log_id: loginLogId,
         login,
         logout,
         refreshUser

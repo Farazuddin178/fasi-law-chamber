@@ -1,9 +1,35 @@
 import { createClient } from '@supabase/supabase-js';
+import { Capacitor } from '@capacitor/core';
 
 const supabaseUrl = "https://hugtbhdqcxjumljglbnc.supabase.co";
 const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1Z3RiaGRxY3hqdW1samdsYm5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMzg3NTcsImV4cCI6MjA3NzcxNDc1N30.sN-TU7CrcJ0Mej8oJcGhWcSyg31HWNqfREW_J1LRqr8";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+/**
+ * Supabase Auth on Capacitor — configuration notes:
+ *
+ * 1. URL scheme redirect: On iOS/Android, OAuth redirects land at a custom URL
+ *    scheme (e.g.  com.tshclegal.app://login-callback) instead of a web URL.
+ *    Register that scheme in your Supabase dashboard under
+ *    Authentication → URL Configuration → Redirect URLs:
+ *      com.tshclegal.app://login-callback
+ *      capacitor://localhost
+ *
+ * 2. detectSessionInUrl: Must be false on native (Capacitor handles deep links
+ *    separately — the browser URL bar doesn't exist).
+ *
+ * 3. storage: falls back to localStorage on web; Capacitor uses the same JS
+ *    localStorage backed by the WebView, which persists across app restarts.
+ */
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // On native, session tokens live in the WebView's localStorage (persists)
+    persistSession: true,
+    // Disable URL fragment detection — not relevant in a native shell
+    detectSessionInUrl: !Capacitor.isNativePlatform(),
+    // Use the platform's default storage (localStorage on both web and native)
+    storage: window.localStorage,
+  },
+});
 
 // Database Types
 export interface User {
@@ -117,16 +143,6 @@ export interface Expense {
   rejection_reason?: string;
   created_at: string;
   updated_at: string;
-}
-
-export interface LoginLog {
-  id: string;
-  user_id: string;
-  login_time: string;
-  logout_time?: string;
-  ip_address?: string;
-  user_agent?: string;
-  created_at: string;
 }
 
 export interface Announcement {

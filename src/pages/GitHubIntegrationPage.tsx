@@ -153,24 +153,26 @@ export default function GitHubIntegrationPage() {
         throw new Error('Invalid import file format');
       }
 
-      // Import cases (in real implementation, handle conflicts)
+      const now = new Date().toISOString();
+      const CHUNK = 200; // Supabase recommends ≤ 200 rows per insert call
       let imported = 0;
-      for (const caseData of importData.cases) {
-        // Remove id to let database generate new ones
-        const { id, ...caseWithoutId } = caseData;
-        
-        // Ensure created_by is valid (use current admin if not present or invalid)
-        const payload = {
-            ...caseWithoutId,
-            created_by: user?.id || caseWithoutId.created_by,
-            updated_at: new Date().toISOString() 
+
+      // Build the full payload array first — strip IDs so the DB assigns new ones
+      const rows = importData.cases.map((caseData: any) => {
+        const { id, ...rest } = caseData;
+        return {
+          ...rest,
+          created_by: user?.id || rest.created_by,
+          updated_at: now,
         };
+      });
 
-        const { error } = await supabase
-          .from('cases')
-          .insert(payload);
-
-        if (!error) imported++;
+      // Send in chunks to stay within Supabase request-size limits
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const chunk = rows.slice(i, i + CHUNK);
+        const { error } = await supabase.from('cases').insert(chunk);
+        if (error) throw error;
+        imported += chunk.length;
       }
 
       toast.success(`Successfully imported ${imported} cases`);

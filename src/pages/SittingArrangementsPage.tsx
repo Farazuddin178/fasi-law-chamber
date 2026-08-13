@@ -3,6 +3,7 @@ import { RefreshCw, Bell, Download, AlertCircle, ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { notificationManager } from '@/lib/notificationManager';
+import { BACKEND_URL } from '@/lib/api';
 
 interface SittingArrangement {
   title: string;
@@ -20,10 +21,8 @@ export default function SittingArrangementsPage() {
   const fetchArrangements = async () => {
     setLoading(true);
     try {
-      const backendURL = window.location.hostname === 'localhost' 
-        ? 'http://localhost:5001'
-        : ''; // Empty string = use same domain
-      const response = await fetch(`${backendURL}/getSittingArrangements`);
+      // Use centralized BACKEND_URL from @/lib/api (works on web and Capacitor native)
+      const response = await fetch(`${BACKEND_URL}/getSittingArrangements`);
         const contentType = response.headers.get('content-type') || '';
        
         // Read response body once
@@ -83,7 +82,7 @@ export default function SittingArrangementsPage() {
   useEffect(() => {
     fetchArrangements();
     
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     if (autoRefresh) {
       interval = setInterval(fetchArrangements, 5 * 60 * 1000); // 5 minutes
     }

@@ -1,5 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { SplashScreen } from '@capacitor/splash-screen';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './components/DashboardLayout';
@@ -16,7 +20,6 @@ import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import StorageMonitoringPage from './pages/StorageMonitoringPage';
 import GitHubIntegrationPage from './pages/GitHubIntegrationPage';
-import MessagesPage from './pages/MessagesPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import LinksPage from './pages/LinksPage';
 import CalendarPage from './pages/CalendarPage';
@@ -63,7 +66,6 @@ function AppRoutes() {
                 <Route path="/users" element={<UsersPage />} />
                 <Route path="/storage" element={<StorageMonitoringPage />} />
                 <Route path="/github" element={<GitHubIntegrationPage />} />
-                <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/announcements" element={<AnnouncementsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/calendar" element={<CalendarPage />} />
@@ -84,6 +86,18 @@ function AppRoutes() {
 }
 
 function App() {
+  // ── Native shell init: hide splash + configure status bar ────────────────
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    // Hide splash after React has painted the first frame
+    SplashScreen.hide({ fadeOutDuration: 300 }).catch(console.warn);
+
+    // Dark-content status bar (white icons) matching the dark theme
+    StatusBar.setStyle({ style: Style.Dark }).catch(console.warn);
+    StatusBar.setBackgroundColor({ color: '#1e293b' }).catch(console.warn);
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>

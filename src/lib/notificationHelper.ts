@@ -12,6 +12,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { BACKEND_URL } from '@/lib/api';
 
 /**
  * Send push notification via FCM tokens.
@@ -47,11 +48,7 @@ export const sendPushNotification = async (
     }
 
     // FIX #1: Call the actual backend push endpoint (if it exists)
-    const backendURL = window.location.hostname === 'localhost'
-      ? 'http://localhost:5001'
-      : '';
-
-    const response = await fetch(`${backendURL}/api/notifications/send-push`, {
+    const response = await fetch(`${BACKEND_URL}/api/notifications/send-push`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Save } from 'lucide-react';
+import { BACKEND_URL } from '@/lib/api';
 
 export default function CaseLookupPage() {
   const { user } = useAuth();
@@ -54,10 +55,8 @@ export default function CaseLookupPage() {
     }
     setLoading(true);
     try {
-      const backendURL = window.location.hostname === 'localhost' 
-        ? 'http://localhost:5001'
-        : ''; // Empty string = use same domain
-      const url = `${backendURL}/getCaseDetails?mtype=${encodeURIComponent(type)}&mno=${encodeURIComponent(number)}&myear=${encodeURIComponent(year)}`;
+      // Use centralized BACKEND_URL from @/lib/api (works on web and Capacitor native)
+      const url = `${BACKEND_URL}/getCaseDetails?mtype=${encodeURIComponent(type)}&mno=${encodeURIComponent(number)}&myear=${encodeURIComponent(year)}`;
       const resp = await fetch(url);
         const contentType = resp.headers.get('content-type') || '';
        
@@ -251,6 +250,12 @@ export default function CaseLookupPage() {
         filing_date: convertDateFormat(result.primary?.filingdate),
         registration_date: convertDateFormat(result.primary?.registrationdate),
         listing_date: convertDateFormat(result.primary?.listingdate),
+        // hearing_date = next scheduled hearing (court listing date)
+        hearing_date: convertDateFormat(result.primary?.listingdate || result.primary?.hearingdate),
+        // mention_date = last return / mention date of the case
+        mention_date: convertDateFormat(result.primary?.returndate || result.primary?.mentiondate),
+        // return_date = when the case was returned / adjourned to
+        return_date: convertDateFormat(result.primary?.returndate),
         disp_date: convertDateFormat(result.primary?.disposaldate),
         disp_type: result.primary?.disposaltype && result.primary.disposaltype !== '-' ? result.primary.disposaltype : null,
         purpose: result.primary?.purpose || '',
@@ -287,7 +292,16 @@ export default function CaseLookupPage() {
         if (existingCase.listing_date !== caseData.listing_date) 
           updates.push(`Listing Date: ${fmt(existingCase.listing_date)} → ${fmt(caseData.listing_date)}`);
         
-        if (existingCase.jud_name !== caseData.jud_name) 
+        if (existingCase.hearing_date !== caseData.hearing_date)
+          updates.push(`Hearing Date: ${fmt(existingCase.hearing_date)} → ${fmt(caseData.hearing_date)}`);
+
+        if (existingCase.mention_date !== caseData.mention_date)
+          updates.push(`Mention Date: ${fmt(existingCase.mention_date)} → ${fmt(caseData.mention_date)}`);
+
+        if (existingCase.return_date !== caseData.return_date)
+          updates.push(`Return Date: ${fmt(existingCase.return_date)} → ${fmt(caseData.return_date)}`);
+
+        if (existingCase.jud_name !== caseData.jud_name)
           updates.push(`Judge: ${fmt(existingCase.jud_name)} → ${fmt(caseData.jud_name)}`);
         
         if (existingCase.purpose !== caseData.purpose) 

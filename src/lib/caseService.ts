@@ -4,6 +4,7 @@
  */
 
 import { supabase } from './supabase';
+import { BACKEND_URL } from './api';
 
 export interface CaseDetail {
   case_title: string;
@@ -202,14 +203,8 @@ async function fetchViaRealtimeAPI(options: {
   case_type: string;
 }): Promise<CaseDetail | null> {
   try {
-    // Determine backend URL
-    const backendURL = process.env.REACT_APP_BACKEND_URL ||
-                      process.env.VITE_BACKEND_URL ||
-                      (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-                        ? 'http://localhost:5000'
-                        : ''); // Empty string = use same domain
-
-    const endpoint = `${backendURL}/api/case/fetch-realtime`;
+    // Use centralized BACKEND_URL (works on web and Capacitor native)
+    const endpoint = `${BACKEND_URL}/api/case/fetch-realtime`;
 
     console.log(`[CaseService] Calling realtime API: ${endpoint}`);
 
@@ -286,20 +281,13 @@ async function fetchViaBackendAPI(options: {
   case_type: string;
 }): Promise<CaseDetail | null> {
   try {
-    // Determine backend URL
-    const backendURL = process.env.REACT_APP_BACKEND_URL ||
-                      process.env.VITE_BACKEND_URL ||
-                      (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-                        ? 'http://localhost:5000'
-                        : ''); // Empty string = use same domain
-
-    // Map court_code to court type (high court vs supreme court)
-    const isSupremeCourt = options.court_code === 'supreme_court' || 
+    // Use centralized BACKEND_URL (works on web and Capacitor native)
+    const isSupremeCourt = options.court_code === 'supreme_court' ||
                           options.court_name?.toLowerCase().includes('supreme');
     
-    const endpoint = isSupremeCourt 
-      ? `${backendURL}/api/supreme-court/search`
-      : `${backendURL}/api/high-court/search`;
+    const endpoint = isSupremeCourt
+      ? `${BACKEND_URL}/api/supreme-court/search`
+      : `${BACKEND_URL}/api/high-court/search`;
 
     console.log(`[CaseService] Calling backend: ${endpoint}`);
 

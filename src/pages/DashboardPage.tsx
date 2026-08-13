@@ -686,7 +686,7 @@ export default function DashboardPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-700">{caseItem.hearing_court || '-'}</td>
                     <td className="px-4 py-3 text-gray-700">
-                      {caseItem.hearing_date ? new Date(caseItem.hearing_date).toLocaleDateString() : '-'}
+                      {caseItem.listing_date ? new Date(caseItem.listing_date).toLocaleDateString() : '-'}
                     </td>
                   </tr>
                 ))
