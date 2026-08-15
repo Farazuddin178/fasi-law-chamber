@@ -28,3 +28,17 @@ export {
 
 // Separator component
 export { Separator } from './separator'
+
+// Mobile record card — the phone-sized stand-in for a table row
+export { RecordCard, RecordCardList } from './record-card'
+export type { RecordCardProps, RecordCardField } from './record-card'
+
+// Empty state — vendored from the Watermelon component registry
+export {
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyContent,
+  EmptyMedia,
+} from './empty'

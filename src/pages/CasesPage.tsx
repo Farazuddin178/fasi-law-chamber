@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { supabase, Case } from "@/lib/supabase";
-import { TableVirtuoso } from "react-virtuoso";
+import { TableVirtuoso, Virtuoso } from "react-virtuoso";
+import { RecordCard } from "@/components/ui";
 import { Plus, Eye, Edit, Trash, Download, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -253,6 +254,79 @@ export default function CasesPage() {
             No cases found{searchTerm ? ` matching \u201c${searchTerm}\u201d` : ""}
           </div>
         ) : (
+          <>
+          {/* Phone layout. Still virtualized — the list can run to thousands of
+              rows, so a plain map() would defeat the point of this page. */}
+          <div className="md:hidden h-full">
+            <Virtuoso
+              style={{ height: "100%" }}
+              data={cases}
+              endReached={handleEndReached}
+              overscan={200}
+              itemContent={(_index, caseItem) => (
+                <RecordCard
+                  className="border-b border-gray-200"
+                  title={
+                    <Link to={`/cases/${caseItem.id}`} className="text-blue-600 hover:underline">
+                      {caseItem.case_number}
+                    </Link>
+                  }
+                  subtitle={`${caseItem.primary_petitioner || "-"} vs ${caseItem.primary_respondent || "-"}`}
+                  badge={
+                    <span
+                      className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        caseItem.status === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : caseItem.status === "filed"
+                          ? "bg-blue-100 text-blue-800"
+                          : caseItem.status === "disposed"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      {caseItem.status}
+                    </span>
+                  }
+                  fields={[
+                    { label: "Mention", value: formatDate(caseItem.mention_date || caseItem.return_date) },
+                    { label: "Hearing", value: formatDate(caseItem.hearing_date || caseItem.listing_date) },
+                    { label: "Listing", value: formatDate(caseItem.listing_date) },
+                  ]}
+                  actions={
+                    <>
+                      <Link to={`/cases/${caseItem.id}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600">
+                        <Eye className="w-4 h-4" /> View
+                      </Link>
+                      {canEdit && (
+                        <Link to={`/cases/${caseItem.id}/edit`} className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600">
+                          <Edit className="w-4 h-4" /> Edit
+                        </Link>
+                      )}
+                      {canDelete && (
+                        <button onClick={() => deleteCase(caseItem.id)} className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600">
+                          <Trash className="w-4 h-4" /> Delete
+                        </button>
+                      )}
+                    </>
+                  }
+                />
+              )}
+              components={{
+                Footer: () =>
+                  loading ? (
+                    <div className="py-4 text-center">
+                      <span className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+                    </div>
+                  ) : !hasMore ? (
+                    <div className="py-3 text-center text-xs text-gray-400">
+                      All {totalCount.toLocaleString()} cases loaded
+                    </div>
+                  ) : null,
+              }}
+            />
+          </div>
+
+          <div className="hidden md:block h-full">
           <TableVirtuoso
             style={{ height: "100%" }}
             data={cases}
@@ -325,6 +399,8 @@ export default function CasesPage() {
                 ) : null,
             }}
           />
+          </div>
+          </>
         )}
       </div>
     </div>

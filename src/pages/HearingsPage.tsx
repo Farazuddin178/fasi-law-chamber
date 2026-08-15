@@ -4,6 +4,15 @@ import { Calendar, Clock, CheckCircle, AlertCircle, Search, Plus, Filter } from 
 import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import {
+  RecordCard,
+  RecordCardList,
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from '@/components/ui';
 
 interface Hearing {
   id: string;
@@ -230,12 +239,63 @@ export default function HearingsPage() {
       {/* Hearings Table */}
       <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
         {sortedFilteredHearings.length === 0 ? (
-          <div className="p-8 text-center">
-            <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No hearings found</p>
-          </div>
+          <Empty className="py-12">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Calendar />
+              </EmptyMedia>
+              <EmptyTitle>No hearings found</EmptyTitle>
+              <EmptyDescription>
+                Nothing matches the current filters. Try widening the date range or
+                clearing the search.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phone layout — see components/ui/record-card */}
+          <RecordCardList>
+            {sortedFilteredHearings.map((hearing) => {
+              const isTomorrow = tomorrowHearings.some(h => h.id === hearing.id);
+              return (
+                <RecordCard
+                  key={hearing.id}
+                  accentClassName={isTomorrow ? 'bg-red-500' : undefined}
+                  title={
+                    <Link to={`/cases/${hearing.case_id}`} className="text-blue-600 hover:underline">
+                      {hearing.case_number}
+                    </Link>
+                  }
+                  subtitle={
+                    <>
+                      {new Date(hearing.hearing_date).toLocaleDateString()}
+                      {isTomorrow && (
+                        <span className="ml-2 text-red-600 font-bold">TOMORROW</span>
+                      )}
+                    </>
+                  }
+                  badge={
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(hearing.status)}`}>
+                      {getStatusIcon(hearing.status)}
+                      <span>{hearing.status.charAt(0).toUpperCase() + hearing.status.slice(1)}</span>
+                    </span>
+                  }
+                  fields={[
+                    { label: 'Court', value: hearing.hearing_court || '-' },
+                    {
+                      label: 'Mention date',
+                      value: hearing.mention_date
+                        ? new Date(hearing.mention_date).toLocaleDateString()
+                        : '-',
+                    },
+                    { label: 'Judge', value: hearing.judge_name || '-', wide: true },
+                  ]}
+                />
+              );
+            })}
+          </RecordCardList>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -291,6 +351,7 @@ export default function HearingsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

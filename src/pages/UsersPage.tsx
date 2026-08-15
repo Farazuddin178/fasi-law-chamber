@@ -3,6 +3,7 @@ import { supabase, User } from '@/lib/supabase';
 import { Plus, Edit, Trash, Shield, UserCog, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { RecordCard, RecordCardList } from '@/components/ui';
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -348,7 +349,56 @@ export default function UsersPage() {
 
       {/* Users Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Phone layout — see components/ui/record-card */}
+        <RecordCardList isEmpty={users.length === 0} emptyMessage="No users found">
+          {users.map((user) => (
+            <RecordCard
+              key={user.id}
+              title={user.full_name}
+              subtitle={user.email}
+              badge={
+                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                  user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}>
+                  {user.is_active ? 'Active' : 'Inactive'}
+                </span>
+              }
+              fields={[
+                { label: 'Role', value: getRoleBadge(user.role) },
+                { label: 'Phone', value: user.phone || '-' },
+                { label: 'Created', value: new Date(user.created_at).toLocaleDateString() },
+              ]}
+              actions={
+                isCurrentUserAdmin ? (
+                  <>
+                    <button
+                      onClick={() => handleEdit(user)}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-900"
+                    >
+                      <Edit className="w-4 h-4" /> Edit
+                    </button>
+                    <button
+                      onClick={() => openChangePassword(user.id)}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-900"
+                    >
+                      <UserCog className="w-4 h-4" /> Password
+                    </button>
+                    {user.role !== 'admin' && (
+                      <button
+                        onClick={() => handleDelete(user.id, user.email)}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-900"
+                      >
+                        <Trash className="w-4 h-4" /> Delete
+                      </button>
+                    )}
+                  </>
+                ) : undefined
+              }
+            />
+          ))}
+        </RecordCardList>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>

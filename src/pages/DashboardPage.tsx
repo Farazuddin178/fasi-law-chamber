@@ -5,6 +5,7 @@ import { FolderOpen, Gavel, FileText, Users, CheckCircle, Clock, Eye, AlertCircl
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import RecentAnnouncement24hr from '@/components/RecentAnnouncement24hr';
+import { RecordCard, RecordCardList } from '@/components/ui';
 
 // Helper function to calculate time remaining
 const getTimeRemaining = (dueDate: string) => {
@@ -647,7 +648,47 @@ export default function DashboardPage() {
           />
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Phone layout — see components/ui/record-card */}
+        <RecordCardList
+          isEmpty={filteredCases.length === 0}
+          emptyMessage="No cases assigned to you"
+          className="border-t border-gray-200"
+        >
+          {filteredCases.map((caseItem, idx) => (
+            <RecordCard
+              key={idx}
+              title={caseItem.case_number || '-'}
+              subtitle={`${caseItem.primary_petitioner || '-'} vs ${caseItem.primary_respondent || '-'}`}
+              badge={
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                  caseItem.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                  caseItem.status === 'filed' ? 'bg-blue-100 text-blue-800' :
+                  caseItem.status === 'disposed' ? 'bg-green-100 text-green-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {caseItem.status?.toUpperCase()}
+                </span>
+              }
+              fields={[
+                {
+                  label: 'Filing date',
+                  value: caseItem.filing_date
+                    ? new Date(caseItem.filing_date).toLocaleDateString()
+                    : '-',
+                },
+                {
+                  label: 'Listing date',
+                  value: caseItem.listing_date
+                    ? new Date(caseItem.listing_date).toLocaleDateString()
+                    : '-',
+                },
+                { label: 'Hearing court', value: caseItem.hearing_court || '-', wide: true },
+              ]}
+            />
+          ))}
+        </RecordCardList>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
