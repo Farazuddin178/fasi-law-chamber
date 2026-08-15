@@ -89,7 +89,10 @@ export default function CasesPage() {
         const { data, error, count } = await query;
         if (error) throw error;
 
-        const rows = (data as CaseListRow[]) || [];
+        // LIST_COLUMNS is a runtime string, so supabase-js cannot infer the row
+        // shape and widens to GenericStringError[]; `error` is thrown above, so
+        // by here `data` is genuinely CaseListRow[].
+        const rows = (data as unknown as CaseListRow[]) || [];
         setCases((prev) => (reset ? rows : [...prev, ...rows]));
         setTotalCount(count ?? 0);
         setHasMore(rows.length === PAGE_SIZE);
@@ -311,6 +314,7 @@ export default function CasesPage() {
                       </td>
                     </tr>
                   </tfoot>
+                ) : !hasMore ? (
                   <tfoot>
                     <tr>
                       <td colSpan={6} className="py-3 text-center text-xs text-gray-400">

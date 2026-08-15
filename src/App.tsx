@@ -1,43 +1,51 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './components/DashboardLayout';
-import DashboardPage from './pages/DashboardPage';
-import CasesPage from './pages/CasesPage';
-import CaseDetailsPage from './pages/CaseDetailsPage';
-import CaseFormPage from './pages/CaseFormPage';
-import HearingsPage from './pages/HearingsPage';
-import TasksPage from './pages/TasksPage';
-import DocumentsPage from './pages/DocumentsPage';
-import AnalyticsPage from './pages/AnalyticsPage';
-import ExpensesPage from './pages/ExpensesPage';
-import UsersPage from './pages/UsersPage';
-import SettingsPage from './pages/SettingsPage';
-import StorageMonitoringPage from './pages/StorageMonitoringPage';
-import GitHubIntegrationPage from './pages/GitHubIntegrationPage';
-import AnnouncementsPage from './pages/AnnouncementsPage';
-import LinksPage from './pages/LinksPage';
-import CalendarPage from './pages/CalendarPage';
-import CaseLookupPage from './pages/CaseLookupPage';
-import AdvocateReportPage from './pages/AdvocateReportPage';
-import DailyCauselistPage from './pages/DailyCauselistPage';
-import SittingArrangementsPage from './pages/SittingArrangementsPage';
-import NotificationsPage from './pages/NotificationsPage';
+
+// Route pages are code-split: each becomes its own chunk fetched on first
+// navigation, instead of every page shipping in the initial bundle.
+// LoginPage and DashboardLayout stay eager — both are needed to paint anything.
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const CasesPage = lazy(() => import('./pages/CasesPage'));
+const CaseDetailsPage = lazy(() => import('./pages/CaseDetailsPage'));
+const CaseFormPage = lazy(() => import('./pages/CaseFormPage'));
+const HearingsPage = lazy(() => import('./pages/HearingsPage'));
+const TasksPage = lazy(() => import('./pages/TasksPage'));
+const DocumentsPage = lazy(() => import('./pages/DocumentsPage'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
+const UsersPage = lazy(() => import('./pages/UsersPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const StorageMonitoringPage = lazy(() => import('./pages/StorageMonitoringPage'));
+const GitHubIntegrationPage = lazy(() => import('./pages/GitHubIntegrationPage'));
+const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'));
+const LinksPage = lazy(() => import('./pages/LinksPage'));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
+const CaseLookupPage = lazy(() => import('./pages/CaseLookupPage'));
+const AdvocateReportPage = lazy(() => import('./pages/AdvocateReportPage'));
+const DailyCauselistPage = lazy(() => import('./pages/DailyCauselistPage'));
+const SittingArrangementsPage = lazy(() => import('./pages/SittingArrangementsPage'));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+
+function PageSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+  );
+}
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   return user ? <>{children}</> : <Navigate to="/login" />;
@@ -52,6 +60,7 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <DashboardLayout>
+              <Suspense fallback={<PageSpinner />}>
               <Routes>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/cases" element={<CasesPage />} />
@@ -77,6 +86,7 @@ function AppRoutes() {
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/" element={<Navigate to="/dashboard" />} />
               </Routes>
+              </Suspense>
             </DashboardLayout>
           </PrivateRoute>
         }
