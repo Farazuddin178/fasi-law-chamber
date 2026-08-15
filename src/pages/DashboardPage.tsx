@@ -337,7 +337,7 @@ export default function DashboardPage() {
       <div className="space-y-6">
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-xl p-6 sm:p-8 text-white shadow-lg">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-3xl sm:text-4xl font-bold mb-2">Welcome, {user?.full_name?.split(' ')[0]}</h1>
               <p className="text-slate-300">Fasi Uddin Law Chamber - Dashboard</p>
@@ -351,7 +351,7 @@ export default function DashboardPage() {
             const Icon = card.icon;
             return (
               <div key={card.title} className={`${card.bgColor} rounded-xl p-6 border-2 border-gray-100 shadow-sm hover:shadow-md transition-shadow`}>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                   <div className={`p-3 rounded-lg bg-white`}>
                     <Icon className={`w-6 h-6 ${card.iconColor}`} />
                   </div>
@@ -377,7 +377,7 @@ export default function DashboardPage() {
               const Icon = card.icon;
               return (
                 <div key={card.title} className={`${card.bgColor} rounded-xl p-6 border-2 border-gray-100`}>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                     <Icon className={`w-6 h-6 ${card.iconColor}`} />
                   </div>
                   <p className={`text-sm font-medium ${card.textColor} mb-1`}>{card.title}</p>
@@ -396,7 +396,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-xl p-6 sm:p-8 text-white shadow-lg">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold mb-2">Welcome, {user?.full_name}</h1>
             <p className="text-slate-300">Fasi Uddin Law Chamber</p>
@@ -406,7 +406,7 @@ export default function DashboardPage() {
 
       {/* Announcements Section - Latest with 24hr Timer */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center space-x-3">
             <Bell className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-bold text-gray-900">Latest Announcement</h2>
@@ -424,7 +424,7 @@ export default function DashboardPage() {
 
       {/* My Tasks / Tasks Assigned Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div className="flex items-center space-x-3">
             <CheckCircle className="w-6 h-6 text-green-600" />
             <h2 className="text-xl font-bold text-gray-900">
@@ -741,7 +741,7 @@ export default function DashboardPage() {
           const Icon = card.icon;
           return (
             <div key={card.title} className={`${card.bgColor} rounded-xl p-6 border-2 border-gray-100 shadow-sm hover:shadow-md transition-shadow`}>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div className={`p-3 rounded-lg bg-white`}>
                   <Icon className={`w-6 h-6 ${card.iconColor}`} />
                 </div>

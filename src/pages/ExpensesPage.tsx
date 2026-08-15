@@ -464,7 +464,7 @@ export default function ExpensesPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Expenses</p>
               <p className="text-2xl font-bold text-gray-900 mt-2">
@@ -477,7 +477,7 @@ export default function ExpensesPage() {
           </div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-gray-600">Pending</p>
               <p className="text-2xl font-bold text-yellow-600 mt-2">
@@ -490,7 +490,7 @@ export default function ExpensesPage() {
           </div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-gray-600">Approved</p>
               <p className="text-2xl font-bold text-green-600 mt-2">
@@ -503,7 +503,7 @@ export default function ExpensesPage() {
           </div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-gray-600">Rejected</p>
               <p className="text-2xl font-bold text-red-600 mt-2">
@@ -519,7 +519,7 @@ export default function ExpensesPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
-        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <div className="flex flex-wrap items-center justify-between gap-3 gap-2 mb-3 flex-wrap">
           <div className="flex items-center gap-2">
             <Filter className="w-5 h-5 text-gray-600" />
             <h3 className="font-semibold text-gray-900">Filters</h3>
@@ -609,7 +609,7 @@ export default function ExpensesPage() {
 
       {/* Due recurring expenses */}
       {dueRecurring.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <Repeat className="w-5 h-5 text-amber-600 shrink-0" />
             <p className="text-sm text-amber-900">

@@ -602,7 +602,7 @@ export default function DailyCauselistPage() {
               <Card className="border-0 shadow-md bg-gradient-to-r from-amber-50 to-orange-50">
                 <CardContent className="pt-6">
                   <div className="flex flex-col gap-4">
-                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex flex-wrap items-center justify-between gap-3 gap-4 flex-wrap">
                       <div className="flex items-center gap-2">
                         <Download className="w-5 h-5 text-amber-600" />
                         <span className="font-semibold text-gray-900">Download Cause List:</span>
@@ -627,7 +627,7 @@ export default function DailyCauselistPage() {
                       </div>
                     </div>
                     
-                    <div className="border-t border-amber-200 pt-4 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="border-t border-amber-200 pt-4 flex flex-wrap items-center justify-between gap-3 gap-4 flex-wrap">
                       <div className="flex items-center gap-2">
                         <Save className="w-5 h-5 text-green-600" />
                         <span className="font-semibold text-gray-900">Save for Later:</span>
@@ -771,7 +771,7 @@ export default function DailyCauselistPage() {
                       )}
                       
                       {/* Footer Info */}
-                      <div className="border-t border-gray-200 mt-4 pt-4 flex items-center justify-between text-xs text-gray-600">
+                      <div className="border-t border-gray-200 mt-4 pt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-600">
                         <span>Serial No: <strong className="text-gray-900">{caseItem.sl_no}</strong></span>
                       </div>
                     </CardContent>
@@ -796,7 +796,7 @@ export default function DailyCauselistPage() {
 
         {/* Saved Cause Lists Section */}
         <div className="mb-12">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Calendar className="w-6 h-6 text-blue-600" />
               Saved Cause Lists

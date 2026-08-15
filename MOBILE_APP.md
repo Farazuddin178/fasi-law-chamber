@@ -13,6 +13,35 @@ the app takes a different branch (same-origin), which is why the website worked
 while the app did not. It now points at `https://fasi-law-chamber.onrender.com`,
 the service defined in `render.yaml`.
 
+## Why the app crashed on launch after logging in
+
+`useCapacitorPush` runs as soon as a user id exists, and `AuthContext` restores
+the saved user from `localStorage` on boot. So once you had logged in
+successfully, every later launch called `PushNotifications.register()` during
+startup.
+
+On Android that goes through Firebase Cloud Messaging. With no
+`android/app/google-services.json`, FCM throws *"Default FirebaseApp is not
+initialized in this process"* as a **native** exception, which kills the app
+process — a JavaScript `try/catch` cannot stop it. The app appeared to open and
+then instantly close, every time.
+
+Native push is therefore **off by default** now. The app runs normally without
+it; you simply get no push notifications.
+
+### Enabling push later
+
+1. Create a Firebase project and register the Android app with the applicationId
+   `com.tshclegal.app`.
+2. Download `google-services.json` and put it in `android/app/`.
+3. Build with the flag set, then re-sync:
+   ```bash
+   VITE_ENABLE_PUSH=true pnpm run cap:sync
+   ```
+
+Skip any of these and push stays disabled — deliberately, so a missing config
+can never crash the app again.
+
 ## One-time setup
 
 1. Install **Android Studio** (includes the Android SDK and an emulator):

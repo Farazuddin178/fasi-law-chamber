@@ -10,6 +10,23 @@
  *
  * The hook is a no-op on web (browser) — it degrades gracefully via the
  * existing Firebase Web SDK path in AuthContext.
+ *
+ * OPT-IN ON PURPOSE — read before enabling:
+ * On Android, PushNotifications.register() goes through Firebase Cloud
+ * Messaging. If android/app/google-services.json is absent, FCM throws
+ * "Default FirebaseApp is not initialized in this process" as a *native*
+ * exception, which kills the app process — a JS try/catch cannot save it.
+ *
+ * Because this hook runs as soon as a user id exists, and AuthContext restores
+ * the saved user from localStorage on boot, that crash happened on every
+ * launch after the first successful login: the app appeared to open and then
+ * immediately close.
+ *
+ * So push stays off unless it is explicitly switched on:
+ *   1. Add your google-services.json to android/app/ (and
+ *      GoogleService-Info.plist to the iOS project).
+ *   2. Set VITE_ENABLE_PUSH=true, then re-run `pnpm run cap:sync`.
+ * Without both, the app runs normally and simply has no native push.
  */
 
 import { useEffect } from 'react';
@@ -23,10 +40,20 @@ import {
 import toast from 'react-hot-toast';
 import { notificationService } from '@/lib/notificationService';
 
+/** Native push only runs when the app was built with VITE_ENABLE_PUSH=true. */
+const PUSH_ENABLED = import.meta.env.VITE_ENABLE_PUSH === 'true';
+
 export function useCapacitorPush(userId: string | null) {
   useEffect(() => {
     // Only activate on a real iOS / Android device — skip in browser
     if (!Capacitor.isNativePlatform() || !userId) return;
+
+    if (!PUSH_ENABLED) {
+      console.info(
+        '[CapacitorPush] Disabled. Set VITE_ENABLE_PUSH=true and add google-services.json to enable.'
+      );
+      return;
+    }
 
     let registered = false;
 
@@ -94,9 +121,15 @@ export function useCapacitorPush(userId: string | null) {
     };
 
     let cleanup: (() => void) | undefined;
-    setupPush().then((fn) => {
-      cleanup = fn;
-    });
+    setupPush()
+      .then((fn) => {
+        cleanup = fn;
+      })
+      .catch((err) => {
+        // Never let a push failure escape as an unhandled rejection; the app
+        // must keep working without notifications.
+        console.error('[CapacitorPush] Setup failed, continuing without push:', err);
+      });
 
     return () => {
       if (cleanup) cleanup();

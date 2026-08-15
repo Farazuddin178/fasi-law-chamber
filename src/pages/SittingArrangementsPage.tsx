@@ -110,7 +110,7 @@ export default function SittingArrangementsPage() {
 
       <div className="space-y-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4 flex-wrap gap-4">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">High Court Roster</h2>
               <p className="text-gray-600 mt-1">Latest sitting arrangements and judge rosters</p>

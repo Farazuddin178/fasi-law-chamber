@@ -454,36 +454,38 @@ Generated: ${new Date().toLocaleString()}
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <Link to="/cases" className="text-gray-600 hover:text-gray-900">
+      {/* Stacks on phones — at 360px the title plus three buttons cannot sit on
+          one row, which pushed the whole page sideways. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link to="/cases" className="text-gray-600 hover:text-gray-900 shrink-0">
             <ArrowLeft className="w-6 h-6" />
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Case Details</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 truncate">Case Details</h1>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={handleDownload}
-            className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            className="flex items-center gap-2 bg-green-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-green-700 text-sm sm:text-base"
           >
-            <Download className="w-5 h-5" />
+            <Download className="w-5 h-5 shrink-0" />
             <span>Download</span>
           </button>
           {canEdit && (
             <Link
               to={`/cases/${id}/edit`}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-2 bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 text-sm sm:text-base"
             >
-              <Edit className="w-5 h-5" />
+              <Edit className="w-5 h-5 shrink-0" />
               <span>Edit</span>
             </Link>
           )}
           {canDelete && (
             <button
               onClick={handleDelete}
-              className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+              className="flex items-center gap-2 bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-700 text-sm sm:text-base"
             >
-              <Trash className="w-5 h-5" />
+              <Trash className="w-5 h-5 shrink-0" />
               <span>Delete</span>
             </button>
           )}
@@ -493,14 +495,14 @@ Generated: ${new Date().toLocaleString()}
 
       <div className="space-y-6">
         {/* HEADER CARD */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl shadow-lg p-8 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-3xl font-bold mb-2">{caseData.case_number}</h2>
-              <p className="text-blue-100 text-lg">{caseData.primary_petitioner} vs {caseData.primary_respondent}</p>
+        <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl shadow-lg p-5 sm:p-8 text-white">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-2 break-words">{caseData.case_number}</h2>
+              <p className="text-blue-100 text-base sm:text-lg break-words">{caseData.primary_petitioner} vs {caseData.primary_respondent}</p>
             </div>
-            <div className="text-right">
-              <div className={`inline-block px-6 py-3 rounded-full font-bold text-lg ${
+            <div className="sm:text-right shrink-0">
+              <div className={`inline-block px-4 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-sm sm:text-lg ${
                 caseData.status === 'disposed' ? 'bg-green-500' :
                 caseData.status === 'pending' ? 'bg-yellow-500' :
                 caseData.status === 'filed' ? 'bg-blue-500' : 'bg-gray-500'

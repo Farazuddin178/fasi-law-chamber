@@ -114,7 +114,7 @@ export default function AuditHistory({ caseId }: AuditHistoryProps) {
               </div>
             </div>
 
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-gray-100">
               <div className="flex items-center space-x-4 text-sm text-gray-600">
                 <div className="flex items-center space-x-1">
                   <UserIcon className="w-4 h-4" />

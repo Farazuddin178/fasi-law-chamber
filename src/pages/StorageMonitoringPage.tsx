@@ -145,7 +145,7 @@ export default function StorageMonitoringPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="p-3 bg-blue-100 rounded-lg">
               <FolderOpen className="w-6 h-6 text-blue-600" />
             </div>
@@ -155,7 +155,7 @@ export default function StorageMonitoringPage() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="p-3 bg-green-100 rounded-lg">
               <FileText className="w-6 h-6 text-green-600" />
             </div>
@@ -165,7 +165,7 @@ export default function StorageMonitoringPage() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="p-3 bg-purple-100 rounded-lg">
               <HardDrive className="w-6 h-6 text-purple-600" />
             </div>
@@ -176,7 +176,7 @@ export default function StorageMonitoringPage() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="p-3 bg-orange-100 rounded-lg">
               <Database className="w-6 h-6 text-orange-600" />
             </div>

@@ -382,7 +382,7 @@ export default function CalendarPage() {
         {/* Calendar */}
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           {/* Month Navigation */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <button
               onClick={goToPreviousMonth}
               className="p-2 hover:bg-gray-100 rounded-lg transition"
@@ -535,7 +535,7 @@ export default function CalendarPage() {
                   onClick={() => setSelectedEvent(event)}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm border ${getEventColor(event)}`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <span className="font-semibold">{event.title}</span>
                     <span className="text-xs uppercase">{getEventTypeLabel(event)}</span>
                   </div>

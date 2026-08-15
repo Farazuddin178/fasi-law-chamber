@@ -26,26 +26,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useCapacitorPush((user as any)?.id ?? null);
 
   useEffect(() => {
-    // Check for existing session
-    const savedUser = localStorage.getItem('current_user');
-    const savedLoginLogId = localStorage.getItem('login_log_id');
-    
-    if (savedUser) {
-      const userData = JSON.parse(savedUser);
-      const normalizedUser = {
-        ...userData,
-        id: userData?.id ?? userData?.user_id ?? userData?.uid,
-      };
-      setUser(normalizedUser);
-      setLoginLogId(savedLoginLogId);
-      
-      // Initialize FCM and notifications
-      if (normalizedUser.id) {
-        initializeFCM(normalizedUser.id);
+    // Restore any existing session. Everything here is defensive: a throw in
+    // this effect would leave `loading` true forever and the app stuck behind
+    // its spinner, which on a phone looks like the app failing to open.
+    try {
+      const savedUser = localStorage.getItem('current_user');
+      const savedLoginLogId = localStorage.getItem('login_log_id');
+
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        const normalizedUser = {
+          ...userData,
+          id: userData?.id ?? userData?.user_id ?? userData?.uid,
+        };
+        setUser(normalizedUser);
+        setLoginLogId(savedLoginLogId);
+
+        // Initialize FCM and notifications
+        if (normalizedUser.id) {
+          initializeFCM(normalizedUser.id);
+        }
       }
+    } catch (err) {
+      // Corrupt or unreadable storage — drop it and start signed out rather
+      // than wedging the app on every launch.
+      console.error('[Auth] Could not restore session, clearing it:', err);
+      try {
+        localStorage.removeItem('current_user');
+        localStorage.removeItem('login_log_id');
+      } catch {
+        /* storage unavailable — nothing more we can do */
+      }
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   }, []);
 
   const initializeFCM = async (userId: string) => {

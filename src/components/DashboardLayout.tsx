@@ -119,7 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-gray-50 lg:flex">
       {/* Mobile header */}
-      <div className="lg:hidden bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-amber-600 px-4 py-3 flex items-center justify-between">
+      <div className="lg:hidden bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-amber-600 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-2 rounded-lg hover:bg-slate-700 text-white transition-colors"
@@ -144,7 +144,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       >
         <div className="flex flex-col h-full">
           {/* Logo Section */}
-          <div className="hidden lg:flex items-center justify-between px-6 py-6 border-b border-amber-600">
+          <div className="hidden lg:flex flex-wrap items-center justify-between gap-3 px-6 py-6 border-b border-amber-600">
             {sidebarOpen && (
               <div>
                 <h1 className="text-lg font-bold bg-gradient-to-r from-amber-300 to-amber-500 bg-clip-text text-transparent">
@@ -235,7 +235,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* Main content */}
-      <main className="flex-1 min-h-screen bg-gray-50">
+      {/* min-w-0 is load-bearing: a flex child defaults to min-width:auto, so
+          any over-wide page content stretches this column and drags the whole
+          layout sideways. overflow-x-hidden is the backstop. */}
+      <main className="flex-1 min-w-0 overflow-x-hidden min-h-screen bg-gray-50">
         <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full">
           <div className="hidden lg:flex items-center justify-end mb-4">
             <NotificationBell />
