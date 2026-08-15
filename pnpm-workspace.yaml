@@ -1,6 +1,11 @@
 packages:
   - '.'
 
+# pnpm 10 reads its own settings from here, not .npmrc.
+# Without this, any dependency published < 24 h before a build fails the
+# install with ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION (e.g. @xmldom/xmldom).
+minimumReleaseAge: 0
+
 onlyBuiltDependencies:
   - '@firebase/util'
   - esbuild
