@@ -352,14 +352,14 @@ export default function TasksPage() {
     if (!newComment.trim() || !selectedTask) return;
 
     try {
-      const numericTaskId = typeof selectedTask.id === 'string' ? parseInt(selectedTask.id) : selectedTask.id;
-      console.log('Sending comment for task:', numericTaskId, 'User:', user?.id);
-      
+      // task.id is a uuid — never coerce it to a number.
+      const taskId = selectedTask.id;
+
       const { error, data } = await supabase
         .from('task_comments')
         .insert([
           {
-            task_id: numericTaskId,
+            task_id: taskId,
             user_id: user?.id,
             comment: newComment.trim(),
             created_at: new Date().toISOString()
@@ -381,8 +381,10 @@ export default function TasksPage() {
     if (!selectedTask) return;
 
     try {
-      const numericId = typeof selectedTask.id === 'string' ? parseInt(selectedTask.id) : selectedTask.id;
-      
+      // task.id is a uuid. parseInt() on it yields NaN, so the .eq('id', …)
+      // below matched no rows and Accept/Decline silently did nothing.
+      const taskId = selectedTask.id;
+
       let updateData: any = {};
       
       if (response === 'accepted') {
@@ -403,7 +405,7 @@ export default function TasksPage() {
       const { error: taskError } = await supabase
         .from('tasks')
         .update(updateData)
-        .eq('id', numericId);
+        .eq('id', taskId);
 
       if (taskError) throw taskError;
 
@@ -438,7 +440,7 @@ export default function TasksPage() {
 
         await supabase.from('task_comments').insert([
           {
-            task_id: numericId,
+            task_id: taskId,
             user_id: user.id,
             comment: systemComment,
             created_at: new Date().toISOString()

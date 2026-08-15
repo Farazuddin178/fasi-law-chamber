@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Calendar, Gavel, Building2, User, MapPin, FileText, Clock, AlertCircle, Download, FileJson, Sheet, Save, RotateCcw, Trash2, Eye, FileDown } from 'lucide-react'
+import { Search, Calendar, Gavel, Building2, User, MapPin, FileText, Clock, AlertCircle, Download, Save, RotateCcw, Trash2, Eye, FileDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -83,63 +83,6 @@ const convertDateInputToLocal = (dateString: string): string => {
   const [year, month, day] = dateString.split('-').map(Number)
   const selectedDate = new Date(year, month - 1, day) // Local time, not UTC
   return formatDateToDDMMYYYY(selectedDate)
-}
-
-// Download as CSV
-const downloadAsCSV = (data: CauseListData) => {
-  const headers = ['S. No', 'Case Number', 'Court No', 'Judge', 'Date', 'Time', 'List Type', 'Petitioner Advocate', 'Respondent Advocate', 'Party Details', 'District', 'Purpose', 'IA/USR', 'Remarks']
-  
-  const rows = data.cases.map((c, idx) => [
-    idx + 1,
-    c.case_number,
-    c.court_no,
-    c.judge,
-    c.date,
-    c.time,
-    c.list_type,
-    c.petitioner_advocate,
-    c.respondent_advocate,
-    c.party_details,
-    c.district,
-    c.purpose || '-',
-    c.ia || '-',
-    c.remarks || '-'
-  ])
-  
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-  ].join('\n')
-  
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-  link.setAttribute('href', url)
-  link.setAttribute('download', `causelist_${data.advocate_code}_${data.date}.csv`)
-  link.click()
-  URL.revokeObjectURL(url)
-  toast.success('Cause list downloaded as CSV')
-}
-
-// Download as JSON
-const downloadAsJSON = (data: CauseListData) => {
-  const jsonData = {
-    advocate_code: data.advocate_code,
-    date: data.date,
-    total_cases: data.total_cases,
-    timestamp: new Date().toISOString(),
-    cases: data.cases
-  }
-  
-  const jsonString = JSON.stringify(jsonData, null, 2)
-  const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' })
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-  link.setAttribute('href', url)
-  link.setAttribute('download', `causelist_${data.advocate_code}_${data.date}.json`)
-  link.click()
-  URL.revokeObjectURL(url)
-  toast.success('Cause list downloaded as JSON')
 }
 
 const CAUSELIST_TABLE = 'causelist_history'
@@ -305,7 +248,10 @@ const buildHTMLContent = (data: CauseListData) => `
   `
 
 const openPrintWindow = (htmlContent: string): boolean => {
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer')
+  // NOTE: do not pass 'noopener' here. Per spec window.open() returns null when
+  // noopener is set, so we lose the handle and can never write the document —
+  // which is exactly why the PDF export opened a blank tab.
+  const printWindow = window.open('', '_blank')
   if (!printWindow) {
     toast.error('Popup blocked. Please allow popups to export PDF.')
     return false
@@ -315,9 +261,18 @@ const openPrintWindow = (htmlContent: string): boolean => {
   printWindow.document.write(htmlContent)
   printWindow.document.close()
 
-  printWindow.onload = () => {
+  // A document.write()n page is usually already 'complete' by this point, so a
+  // load listener would never fire. Print directly when it is ready, and only
+  // fall back to onload if it genuinely is still parsing.
+  const triggerPrint = () => {
     printWindow.focus()
     printWindow.print()
+  }
+
+  if (printWindow.document.readyState === 'complete') {
+    setTimeout(triggerPrint, 0)
+  } else {
+    printWindow.onload = triggerPrint
   }
 
   return true
@@ -327,12 +282,16 @@ const openPrintWindow = (htmlContent: string): boolean => {
 const downloadAsHTML = (data: CauseListData) => {
   const htmlContent = buildHTMLContent(data)
   const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' })
-  const link = document.createElement('a')
   const url = URL.createObjectURL(blob)
-  link.setAttribute('href', url)
-  link.setAttribute('download', `causelist_${data.advocate_code}_${data.date}.html`)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `causelist_${data.advocate_code}_${data.date}.html`
+  // The anchor must be in the document for the click to register in Firefox,
+  // and the object URL must outlive the click or the download is cancelled.
+  document.body.appendChild(link)
   link.click()
-  URL.revokeObjectURL(url)
+  document.body.removeChild(link)
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
   toast.success('Cause list downloaded as HTML')
 }
 
@@ -621,22 +580,6 @@ export default function DailyCauselistPage() {
                         >
                           <FileText className="w-4 h-4 mr-2" />
                           HTML
-                        </Button>
-                        <Button
-                          onClick={() => downloadAsCSV(data)}
-                          variant="outline"
-                          className="border-amber-300 text-amber-700 hover:bg-amber-100"
-                        >
-                          <Sheet className="w-4 h-4 mr-2" />
-                          CSV
-                        </Button>
-                        <Button
-                          onClick={() => downloadAsJSON(data)}
-                          variant="outline"
-                          className="border-amber-300 text-amber-700 hover:bg-amber-100"
-                        >
-                          <FileJson className="w-4 h-4 mr-2" />
-                          JSON
                         </Button>
                       </div>
                     </div>

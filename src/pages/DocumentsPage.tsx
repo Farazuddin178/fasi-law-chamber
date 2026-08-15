@@ -203,6 +203,7 @@ export default function DocumentsPage() {
         .download(document.file_path);
 
       if (error) throw error;
+      if (!data) throw new Error('Storage returned no file for this document');
 
       // Create download link
       const url = window.URL.createObjectURL(data);
@@ -212,10 +213,13 @@ export default function DocumentsPage() {
       window.document.body.appendChild(link);
       link.click();
       window.document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // Revoking immediately can cancel the download before the browser has
+      // finished reading the blob.
+      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
 
       toast.success('Document downloaded');
     } catch (error: any) {
+      console.error('Document download failed:', error);
       toast.error(error.message || 'Failed to download document');
     }
   };
