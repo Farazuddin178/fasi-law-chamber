@@ -6,6 +6,9 @@ packages:
 # install with ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION (e.g. @xmldom/xmldom).
 minimumReleaseAge: 0
 
+# Ignored build scripts warn instead of failing the install.
+strictDepBuilds: false
+
 onlyBuiltDependencies:
   - '@firebase/util'
   - esbuild

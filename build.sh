@@ -11,33 +11,28 @@ pip install -r requirements.txt --quiet
 echo "✓ Python dependencies installed"
 echo ""
 
-# Belt-and-braces: env config outranks every .npmrc / pnpm-workspace.yaml,
-# so the minimum-release-age policy stays off whichever pnpm ends up running.
+# Env config outranks .npmrc and pnpm-workspace.yaml, so these hold no matter
+# which pnpm Render ends up running:
+#   minimum_release_age  - don't reject deps published in the last 24 h
+#   strict_dep_builds    - ignored build scripts warn, never fail the install
 export npm_config_minimum_release_age=0
-export NPM_CONFIG_MINIMUM_RELEASE_AGE=0
+export npm_config_strict_dep_builds=false
 
 echo "Step 2: Installing pnpm..."
-npm install -g pnpm@9 --quiet
-# Call the pnpm we just installed by absolute path. Render's image ships its
-# own (newer) pnpm that otherwise wins on PATH, which is what actually ran the
-# supply-chain check that broke the last build.
-PNPM="$(npm root -g)/pnpm/bin/pnpm.cjs"
-if [ -f "$PNPM" ]; then
-  pnpm_run() { node "$PNPM" "$@"; }
-else
-  echo "! pnpm.cjs not found at $PNPM, falling back to PATH"
-  pnpm_run() { pnpm "$@"; }
-fi
-echo "✓ pnpm installed: $(pnpm_run --version)"
+# Render's image ships its own pnpm that wins on PATH regardless of what we
+# install here, so don't pretend to pin a version — just report what actually
+# runs, so the build log identifies it when something breaks.
+npm install -g pnpm@9 --quiet || echo "! global pnpm install failed, using preinstalled pnpm"
+echo "✓ pnpm in use: $(pnpm --version)"
 echo ""
 
 echo "Step 3: Installing Node.js dependencies..."
-pnpm_run install --frozen-lockfile
+pnpm install --frozen-lockfile
 echo "✓ Node.js dependencies installed"
 echo ""
 
 echo "Step 4: Building frontend..."
-pnpm_run run build
+pnpm run build
 echo "✓ Frontend built successfully"
 echo ""
 
