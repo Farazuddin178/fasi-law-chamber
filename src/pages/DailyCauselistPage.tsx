@@ -175,9 +175,50 @@ const buildHTMLContent = (data: CauseListData) => `
         .case-number { color: #dc2626; font-weight: bold; }
         .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 12px; }
         .print-date { color: #9ca3af; font-size: 12px; }
+
+        /* 11 columns do not fit portrait A4 — force landscape and let the
+           table lay out on a fixed grid so long judge/advocate names wrap
+           instead of pushing columns off the page. */
+        @page { size: A4 landscape; margin: 10mm; }
+
         @media print {
-          body { background-color: white; }
-          .container { box-shadow: none; }
+          body { background-color: white; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .container { box-shadow: none; max-width: none; padding: 0; border-radius: 0; }
+
+          table { table-layout: fixed; width: 100%; font-size: 9px; }
+          th, td { padding: 4px 5px; font-size: 9px; word-wrap: break-word; overflow-wrap: anywhere; }
+
+          /* Narrow the fixed-width columns so the free-text ones get the room */
+          th:nth-child(1),  td:nth-child(1)  { width: 4%; }   /* S. No */
+          th:nth-child(2),  td:nth-child(2)  { width: 11%; }  /* Case Number */
+          th:nth-child(3),  td:nth-child(3)  { width: 5%; }   /* Court No */
+          th:nth-child(4),  td:nth-child(4)  { width: 16%; }  /* Judge */
+          th:nth-child(5),  td:nth-child(5)  { width: 8%; }   /* Date */
+          th:nth-child(6),  td:nth-child(6)  { width: 6%; }   /* Time */
+          th:nth-child(7),  td:nth-child(7)  { width: 8%; }   /* List Type */
+          th:nth-child(8),  td:nth-child(8)  { width: 12%; }  /* Petitioner Adv */
+          th:nth-child(9),  td:nth-child(9)  { width: 12%; }  /* Respondent Adv */
+          th:nth-child(10), td:nth-child(10) { width: 8%; }   /* District */
+          th:nth-child(11), td:nth-child(11) { width: 10%; }  /* Purpose */
+
+          /* Repeat the header on every printed page, never split a row */
+          thead { display: table-header-group; }
+          tr { page-break-inside: avoid; break-inside: avoid; }
+
+          .header h1 { font-size: 16px; }
+          .summary { gap: 10px; margin-bottom: 14px; }
+          .summary-card { padding: 10px; }
+          .summary-card .value { font-size: 15px; margin-top: 4px; }
+          .footer { page-break-inside: avoid; }
+        }
+
+        /* Small screens: let the table scroll rather than blowing out the page */
+        @media screen and (max-width: 768px) {
+          body { padding: 8px; }
+          .container { padding: 12px; }
+          .summary { grid-template-columns: 1fr; gap: 10px; }
+          .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+          table { min-width: 900px; }
         }
       </style>
     </head>
@@ -203,6 +244,7 @@ const buildHTMLContent = (data: CauseListData) => `
           </div>
         </div>
         
+        <div class="table-scroll">
         <table>
           <thead>
             <tr>
@@ -237,7 +279,8 @@ const buildHTMLContent = (data: CauseListData) => `
             `).join('')}
           </tbody>
         </table>
-        
+        </div>
+
         <div class="footer">
           <p>This is an electronically generated document. For official use only.</p>
           <p class="print-date">Printed: ${new Date().toLocaleString()}</p>

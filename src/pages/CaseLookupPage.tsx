@@ -28,7 +28,7 @@ export default function CaseLookupPage() {
       if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr.split('T')[0];
       
       // Convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD
-      const parts = dateStr.split(/[\/\-]/);
+      const parts = dateStr.split(/[/-]/);
       if (parts.length === 3) {
         const [day, month, year] = parts;
         // Basic validation

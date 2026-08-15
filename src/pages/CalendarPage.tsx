@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase, Task, User, Case } from '@/lib/supabase';
 import { ChevronLeft, ChevronRight, Calendar, Clock, Printer, ListChecks } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,7 +18,29 @@ interface CalendarEvent {
   data: any;
 }
 
+/**
+ * Where each calendar event should take the user. A listing is anchored to one
+ * specific case, so it opens that case directly; the rest open their section.
+ */
+const getEventTarget = (event: CalendarEvent): { path: string; label: string } => {
+  switch (event.type) {
+    case 'task':
+      return { path: '/tasks', label: 'Open in Tasks' };
+    case 'hearing':
+      return { path: '/hearings', label: 'Open in Hearings' };
+    case 'listing':
+      return event.data?.id
+        ? { path: `/cases/${event.data.id}`, label: 'Open Case' }
+        : { path: '/cases', label: 'Open in Cases' };
+    case 'causelist':
+      return { path: '/daily-causelist', label: 'Open Daily Causelist' };
+    default:
+      return { path: '/dashboard', label: 'Open' };
+  }
+};
+
 export default function CalendarPage() {
+  const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -581,11 +604,12 @@ export default function CalendarPage() {
                 )}
               </div>
 
-              {selectedEvent.type === 'task' && (
-                <button className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-                  View Full Details
-                </button>
-              )}
+              <button
+                onClick={() => navigate(getEventTarget(selectedEvent).path)}
+                className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+              >
+                {getEventTarget(selectedEvent).label}
+              </button>
             </div>
           ) : (
             <div className="text-center py-8">
@@ -630,6 +654,17 @@ export default function CalendarPage() {
                 <span className={`px-2 py-1 rounded text-xs font-semibold ${getEventColor(event)}`}>
                   {getEventTypeLabel(event)}
                 </span>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(getEventTarget(event).path);
+                  }}
+                  title={getEventTarget(event).label}
+                  className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition shrink-0"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
               </div>
             ))}
         </div>

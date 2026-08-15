@@ -32,10 +32,13 @@ export const BACKEND_URL: string = (() => {
     return import.meta.env.VITE_BACKEND_URL as string;
   }
 
-  // 2. Running inside Capacitor native shell — must use absolute URL
+  // 2. Running inside Capacitor native shell — must use absolute URL.
+  // This is the `fasi-law-chamber` service from render.yaml. It previously read
+  // 'https://your-app-name.onrender.com', an unreplaced placeholder, so every
+  // backend call from the mobile app resolved to a domain that does not exist —
+  // which is why the app worked in the browser but not as a native app.
   if (Capacitor.isNativePlatform()) {
-    // IMPORTANT: replace this with your actual Render service URL
-    return 'https://your-app-name.onrender.com';
+    return 'https://fasi-law-chamber.onrender.com';
   }
 
   // 3. Browser dev server — use local proxy

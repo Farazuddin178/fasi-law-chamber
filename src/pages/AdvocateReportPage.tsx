@@ -38,7 +38,7 @@ const parseIndianDate = (dateStr: string | any) => {
     }
 
     // Handle DD/MM/YYYY or DD-MM-YYYY
-    const parts = cleanStr.split(/[\/\-]/);
+    const parts = cleanStr.split(/[/-]/);
     if (parts.length === 3) {
       const day = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1; 
@@ -202,7 +202,7 @@ export default function AdvocateReportPage() {
     if (!dateStr || dateStr === '-' || dateStr === 'null') return null;
     try {
       if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr.split('T')[0];
-      const parts = dateStr.split(/[\/\-]/);
+      const parts = dateStr.split(/[/-]/);
       if (parts.length === 3) {
         const [day, month, year] = parts;
         if (parseInt(day) > 31 || parseInt(month) > 12) return null;
