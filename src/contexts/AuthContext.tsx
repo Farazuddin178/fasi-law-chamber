@@ -3,6 +3,7 @@ import { User, supabase } from '@/lib/supabase';
 import { getFCMToken, setupMessageListener } from '@/lib/firebase';
 import { notificationService } from '@/lib/notificationService';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
+import { showNotification, requestNotificationPermission } from '@/lib/notify';
 import toast from 'react-hot-toast';
 
 interface AuthContextType {
@@ -64,13 +65,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const initializeFCM = async (userId: string) => {
     try {
-      // Request notification permission using browser Notification API
-      if ('Notification' in window && Notification.permission === 'default') {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          console.log('Browser notification permission granted');
-        }
-      }
+      // Ask for notification permission. This must go through the shared
+      // helper: the old check bailed out when 'Notification' was absent from
+      // window, which is always the case in an Android WebView, so the app
+      // never requested the POST_NOTIFICATIONS permission Android 13+ needs.
+      const granted = await requestNotificationPermission();
+      console.log('[Auth] Notification permission granted:', granted);
 
       // Register service worker (optional for Firebase)
       if ('serviceWorker' in navigator) {
@@ -95,10 +95,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setupMessageListener((payload) => {
         const { notification } = payload;
         if (notification) {
-          // Show native browser notification
-          new Notification(notification.title || 'Notification', {
+          // Raise a real OS notification (works in the browser and on native)
+          void showNotification({
+            title: notification.title || 'Notification',
             body: notification.body,
-            icon: '/logo.png',
           });
           toast.success(notification.body || notification.title);
         }

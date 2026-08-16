@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationHelpers } from '@/lib/database';
 import { notificationManager } from '@/lib/notificationManager';
+import { showNotification } from '@/lib/notify';
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -193,14 +194,12 @@ export default function TasksPage() {
         if (cleanedData.assigned_to && data) {
           const assignedUser = users.find(u => u.id === cleanedData.assigned_to);
           if (assignedUser) {
-            // Send browser notification immediately
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('📋 New Task Assigned', {
-                body: `You have been assigned: ${formData.title}`,
-                icon: '/logo.png',
-                tag: 'task-notification',
-              });
-            }
+            // Raise an OS notification (browser + native phone shade)
+            void showNotification({
+              title: '📋 New Task Assigned',
+              body: `You have been assigned: ${formData.title}`,
+              tag: 'task-notification',
+            });
             
             // Send WhatsApp & Email notifications via backend
             try {
@@ -421,16 +420,14 @@ export default function TasksPage() {
       }
 
       // Show notification for status change
-      if ('Notification' in window && Notification.permission === 'granted') {
-        const message = response === 'accepted' 
-          ? `✅ You accepted: ${selectedTask.title}`
-          : `❌ You declined: ${selectedTask.title}`;
-        new Notification('Task Updated', {
-          body: message,
-          icon: '/logo.png',
-          tag: 'task-status-notification',
-        });
-      }
+      void showNotification({
+        title: 'Task Updated',
+        body:
+          response === 'accepted'
+            ? `✅ You accepted: ${selectedTask.title}`
+            : `❌ You declined: ${selectedTask.title}`,
+        tag: 'task-status-notification',
+      });
 
       // Add system comment for visibility
       if (user?.id) {

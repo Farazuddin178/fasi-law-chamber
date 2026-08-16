@@ -42,6 +42,47 @@ it; you simply get no push notifications.
 Skip any of these and push stays disabled — deliberately, so a missing config
 can never crash the app again.
 
+## Phone notifications
+
+There were two separate reasons nothing reached the notification shade.
+
+**1. The app used a browser-only API (fixed).**
+Notifications were raised with `new Notification(...)`, the Web Notification
+API. An Android WebView does not implement it, so `'Notification' in window` was
+false and every one of those calls was skipped — the in-app bell updated and the
+phone stayed silent. All call sites now go through `src/lib/notify.ts`, which
+uses `@capacitor/local-notifications` on the device. `POST_NOTIFICATIONS` is
+declared in the manifest and requested at login, which Android 13+ requires.
+
+**2. The server never sends push (still open).**
+`/api/notifications/send-push` in `notification_routes.py` is a placeholder that
+logs the request and returns success. Nothing is delivered.
+
+### What works now vs. what needs Firebase
+
+| | App open / backgrounded | App fully closed |
+|---|---|---|
+| Now (local notifications) | ✅ appears on your phone | ❌ nothing |
+| With FCM configured | ✅ | ✅ |
+
+Local notifications are raised *by the app*, so the app has to be running.
+Instagram-style delivery to a closed app needs a push service pushing to the
+device. To finish that:
+
+1. Create a Firebase project, register the Android app with applicationId
+   `com.tshclegal.app`, download `google-services.json` into `android/app/`.
+2. Rebuild with `VITE_ENABLE_PUSH=true pnpm run cap:sync` so
+   `useCapacitorPush` registers and stores a device token in `fcm_tokens`.
+3. Implement real sending in `send_push()` — add `firebase-admin` to
+   `requirements.txt`, load a service-account key from an env var, and replace
+   the placeholder with `messaging.send_each_for_multicast(...)`. The TODO in
+   that function sketches the call.
+
+Step 3 was deliberately left undone: it needs credentials that only exist in
+your Firebase project, and shipping untested sending code plus a large new
+Python dependency would risk the Render build for no benefit until steps 1–2
+are done.
+
 ## One-time setup
 
 1. Install **Android Studio** (includes the Android SDK and an emulator):

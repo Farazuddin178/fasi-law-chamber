@@ -20,6 +20,7 @@
 
 import { supabase } from './supabase';
 import toast from 'react-hot-toast';
+import { showNotification, requestNotificationPermission } from './notify';
 
 type NotificationType =
   | 'task'
@@ -211,43 +212,32 @@ class NotificationManager {
   }
 
   /**
-   * FIX #8: Send browser notification with correct title tag
+   * Raise an OS notification for this payload.
+   *
+   * Routed through showNotification so it reaches the phone's notification
+   * shade. This previously called `new Notification(...)` directly — a
+   * browser-only API that an Android WebView does not implement — so on mobile
+   * it silently did nothing.
    */
   private sendBrowserNotification(payload: NotificationPayload) {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(payload.title, {
-          body: payload.message,
-          icon: '/logo.png',
-          badge: '/badge.png',
-          tag: `${payload.type}_${Date.now()}`, // FIX #8: unique tag per notification
-          requireInteraction: payload.priority === 'urgent',
-        });
-      } catch (e) {
-        console.log('Browser notification failed:', e);
-      }
-    }
+    void showNotification({
+      title: payload.title,
+      body: payload.message,
+      tag: `${payload.type}_${Date.now()}`,
+    });
   }
 
   /**
-   * Request browser notification permission
+   * Request notification permission.
+   *
+   * Delegates to requestNotificationPermission, which asks the OS on native
+   * (Android 13+ will not deliver anything without POST_NOTIFICATIONS) and
+   * falls back to the Web Notification API in a browser. The old body checked
+   * `'Notification' in window` and bailed out on mobile, so the app never even
+   * asked for permission there.
    */
   async requestPermission(): Promise<boolean> {
-    if (!('Notification' in window)) {
-      console.log('Browser notifications not supported');
-      return false;
-    }
-
-    if (Notification.permission === 'granted') {
-      return true;
-    }
-
-    if (Notification.permission !== 'denied') {
-      const permission = await Notification.requestPermission();
-      return permission === 'granted';
-    }
-
-    return false;
+    return requestNotificationPermission();
   }
 
   // ===========================================================================
