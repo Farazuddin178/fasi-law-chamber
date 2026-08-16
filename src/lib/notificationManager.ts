@@ -110,8 +110,10 @@ class NotificationManager {
 
     if (error) throw error;
 
-    // Try browser notification if permission granted
-    this.sendBrowserNotification(payload);
+    // NOTE: deliberately no notification raised here. This code runs on the
+    // *sender's* device, so popping one here notified the wrong person — the
+    // assigner saw "New task assigned", the assignee saw nothing. The recipient
+    // is notified by their own realtime subscription (useNotificationListener).
   }
 
   /**
@@ -182,8 +184,8 @@ class NotificationManager {
     const { error } = await supabase.from('notifications').insert(notifications);
     if (error) throw error;
 
-    // Try browser notification
-    this.sendBrowserNotification(payload);
+    // As in sendToUser: each recipient is notified by their own realtime
+    // subscription, so nothing is raised on the sender's device here.
   }
 
   /**
@@ -212,14 +214,13 @@ class NotificationManager {
   }
 
   /**
-   * Raise an OS notification for this payload.
-   *
-   * Routed through showNotification so it reaches the phone's notification
-   * shade. This previously called `new Notification(...)` directly — a
-   * browser-only API that an Android WebView does not implement — so on mobile
-   * it silently did nothing.
+   * Raise an OS notification directly, for the rare case where the acting user
+   * should see confirmation on their own device (e.g. TasksPage echoing an
+   * action they just took). Ordinary delivery does NOT go through here — each
+   * recipient is notified by their own realtime subscription, see
+   * hooks/useNotificationListener.
    */
-  private sendBrowserNotification(payload: NotificationPayload) {
+  notifyThisDevice(payload: Pick<NotificationPayload, 'title' | 'message' | 'type'>) {
     void showNotification({
       title: payload.title,
       body: payload.message,
@@ -300,6 +301,28 @@ class NotificationManager {
       type: 'case_updated',
       priority: 'medium',
       userId,
+      metadata: { case_number: caseNumber },
+    });
+  }
+
+  /**
+   * A case was created or edited — tell the whole chamber except whoever did
+   * it. Cases are not owned by one person here, so a broadcast is the right
+   * shape; notifyCaseUpdate above stays for targeting a single user.
+   */
+  async notifyCaseChange(
+    caseNumber: string,
+    changeDescription: string,
+    options: { excludeUserId?: string; caseId?: string; isNew?: boolean } = {}
+  ) {
+    return this.send({
+      title: options.isNew ? '🆕 New Case Added' : '📁 Case Updated',
+      message: `${caseNumber || 'Case'}: ${changeDescription}`,
+      type: 'case_updated',
+      priority: 'medium',
+      excludeUserId: options.excludeUserId,
+      relatedId: options.caseId,
+      relatedType: 'case',
       metadata: { case_number: caseNumber },
     });
   }

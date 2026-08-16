@@ -3,6 +3,7 @@ import { User, supabase } from '@/lib/supabase';
 import { getFCMToken, setupMessageListener } from '@/lib/firebase';
 import { notificationService } from '@/lib/notificationService';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
+import { useNotificationListener } from '@/hooks/useNotificationListener';
 import { showNotification, requestNotificationPermission } from '@/lib/notify';
 import toast from 'react-hot-toast';
 
@@ -25,6 +26,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // On native iOS/Android this requests permission + stores the device token.
   // On web this is a no-op (the Firebase Web SDK path below handles it).
   useCapacitorPush((user as any)?.id ?? null);
+
+  // ── Realtime notification listener ──────────────────────────────────────
+  // Raises an OS notification whenever a row lands in `notifications` for this
+  // user. Mounted here so it is active on every screen, not just one page.
+  useNotificationListener((user as any)?.id ?? null);
 
   useEffect(() => {
     // Restore any existing session. Everything here is defensive: a throw in

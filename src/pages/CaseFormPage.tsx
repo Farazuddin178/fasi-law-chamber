@@ -5,6 +5,7 @@ import { auditLogsDB } from '@/lib/database';
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { notificationManager } from '@/lib/notificationManager';
 
 export default function CaseFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -357,7 +358,19 @@ export default function CaseFormPage() {
             console.error('Audit log creation failed:', auditError);
           }
         }
-        
+
+        // Tell everyone else the case changed. Never let a notification
+        // failure block the save that already succeeded.
+        try {
+          await notificationManager.notifyCaseChange(
+            caseData.case_number || '',
+            `Updated by ${user?.full_name || 'a team member'}`,
+            { excludeUserId: userId || undefined, caseId: id }
+          );
+        } catch (notifyError) {
+          console.error('Case update notification failed:', notifyError);
+        }
+
         toast.success('Case updated successfully');
         navigate(`/cases/${id}`);
       } else {
@@ -388,6 +401,16 @@ export default function CaseFormPage() {
           }
         }
         
+        try {
+          await notificationManager.notifyCaseChange(
+            caseData.case_number || '',
+            `Added by ${user?.full_name || 'a team member'}`,
+            { excludeUserId: userId || undefined, caseId: data?.id, isNew: true }
+          );
+        } catch (notifyError) {
+          console.error('New case notification failed:', notifyError);
+        }
+
         toast.success('Case created successfully');
         navigate(`/cases/${data.id}`);
       }

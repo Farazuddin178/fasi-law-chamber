@@ -194,13 +194,12 @@ export default function TasksPage() {
         if (cleanedData.assigned_to && data) {
           const assignedUser = users.find(u => u.id === cleanedData.assigned_to);
           if (assignedUser) {
-            // Raise an OS notification (browser + native phone shade)
-            void showNotification({
-              title: '📋 New Task Assigned',
-              body: `You have been assigned: ${formData.title}`,
-              tag: 'task-notification',
-            });
-            
+            // No notification is raised here on purpose: this code runs on the
+            // assigner's device, so "You have been assigned…" was going to the
+            // wrong person. notifyTaskAssignment below writes the notification
+            // row, and the assignee's own realtime subscription
+            // (useNotificationListener) pops it on their phone.
+
             // Send WhatsApp & Email notifications via backend
             try {
               // 1. Send External (WhatsApp + Email)
