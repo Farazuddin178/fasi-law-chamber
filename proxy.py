@@ -48,13 +48,18 @@ app = Flask(__name__, static_folder=None)
 # ---------------------------------------------------------------------------
 _ALLOWED_ORIGINS = [
     "capacitor://localhost",
+    # Capacitor 6 defaults androidScheme to "https", so the Android WebView
+    # origin is https://localhost, NOT http://localhost. Omitting this is what
+    # made every request from the Android app fail with "Failed to fetch" —
+    # the browser rejected the response before the app ever saw it.
+    "https://localhost",
     "http://localhost",
     "http://localhost:5173",   # Vite dev server
     "http://localhost:4173",   # Vite preview
     "http://127.0.0.1:5173",
     "ionic://localhost",
-    # Add your deployed frontend URL here, e.g.:
-    # "https://your-app.vercel.app",
+    # Deployed frontend (served same-origin by this app, listed for clarity)
+    "https://fasi-law-chamber.onrender.com",
 ]
 
 CORS(

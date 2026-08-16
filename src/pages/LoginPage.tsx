@@ -49,7 +49,10 @@ export default function LoginPage() {
 
         {/* Login Card */}
         <div className="bg-slate-800 rounded-2xl shadow-2xl backdrop-blur-sm border border-slate-700 overflow-hidden">
-          <div className="p-8 space-y-6">
+          {/* A real <form> so Enter submits from either field. The button was
+              marked type="submit" but had no form to submit, so it only ever
+              responded to a click. */}
+          <form onSubmit={handleSubmit} className="p-8 space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-slate-200 mb-2">
                 Email Address
@@ -85,12 +88,11 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              onClick={handleSubmit}
               className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-slate-900 py-3 px-4 rounded-lg font-bold hover:from-amber-600 hover:to-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
-          </div>
+          </form>
 
           <div className="px-8 py-4 bg-slate-900 border-t border-slate-700">
             <p className="text-center text-slate-400 text-sm">

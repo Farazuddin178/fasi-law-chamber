@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Adaptive-icon foreground: the scales of justice, matching the amber-on-slate
+    mark used on the login screen (the lucide "Scale" glyph).
+
+    Adaptive icons are 108x108dp with only the middle 72x72dp guaranteed
+    visible - the outer 18dp on each side is reserved for the launcher's mask
+    and parallax. The artwork below is therefore drawn inside roughly the
+    central 60x60dp so it never gets clipped into a circle, squircle or squircle
+    -with-rounded-corners depending on the launcher.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Central column -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M52.2,30h3.6v44h-3.6z" />
+
+    <!-- Base foot -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M40,74h28v4H40z" />
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M46,70h16v4H46z" />
+
+    <!-- Cross beam -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M30,36h48v3.6H30z" />
+
+    <!-- Pivot knob -->
+    <path
+        android:fillColor="#FCD34D"
+        android:pathData="M54,26m-4.4,0a4.4,4.4 0,1 1,8.8 0a4.4,4.4 0,1 1,-8.8 0" />
+
+    <!-- Left hanger -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M32.2,39h1.6v9h-1.6z" />
+    <!-- Left pan -->
+    <path
+        android:fillColor="#FCD34D"
+        android:pathData="M21,48h24l-12,14z" />
+
+    <!-- Right hanger -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M74.2,39h1.6v9h-1.6z" />
+    <!-- Right pan -->
+    <path
+        android:fillColor="#FCD34D"
+        android:pathData="M63,48h24l-12,14z" />
+</vector>

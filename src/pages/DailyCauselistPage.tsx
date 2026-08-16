@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { BACKEND_URL } from '@/lib/api'
+import { saveHtmlDocument, canPrintToPdf } from '@/lib/download'
 import { 
   Card, 
   CardContent, 
@@ -322,25 +323,35 @@ const openPrintWindow = (htmlContent: string): boolean => {
 }
 
 // Download as HTML Table
-const downloadAsHTML = (data: CauseListData) => {
-  const htmlContent = buildHTMLContent(data)
-  const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `causelist_${data.advocate_code}_${data.date}.html`
-  // The anchor must be in the document for the click to register in Firefox,
-  // and the object URL must outlive the click or the download is cancelled.
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  setTimeout(() => URL.revokeObjectURL(url), 10000)
-  toast.success('Cause list downloaded as HTML')
+const downloadAsHTML = async (data: CauseListData) => {
+  try {
+    const result = await saveHtmlDocument(
+      buildHTMLContent(data),
+      `causelist_${data.advocate_code}_${data.date}`,
+      { shareTitle: `Cause list ${data.advocate_code} ${data.date}` }
+    )
+    toast.success(
+      result.via === 'native'
+        ? 'Saved to your device — choose where to keep it'
+        : 'Cause list downloaded as HTML'
+    )
+  } catch (err: any) {
+    console.error('Cause list download failed:', err)
+    toast.error(err?.message || 'Failed to save the cause list')
+  }
 }
 
-// Export as PDF using print dialog
-const downloadAsPDF = (data: CauseListData) => {
+// Export as PDF using print dialog.
+// A Capacitor WebView has no print dialog and no download manager, so on native
+// we fall back to saving the document and offering the share sheet.
+const downloadAsPDF = async (data: CauseListData) => {
   const htmlContent = buildHTMLContent(data)
+
+  if (!canPrintToPdf()) {
+    await downloadAsHTML(data)
+    return
+  }
+
   if (openPrintWindow(htmlContent)) {
     toast.success('Print dialog opened for PDF export')
   }

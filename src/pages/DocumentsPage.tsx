@@ -3,6 +3,7 @@ import { supabase, Document, Case } from '@/lib/supabase';
 import { Upload, FileText, Download, Trash, Filter, X, File, FileImage, CheckCircle, Clock, Eye, Plus, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { downloadBlob } from '@/lib/download';
 
 const SUPABASE_URL = 'https://hugtbhdqcxjumljglbnc.supabase.co';
 const STORAGE_BUCKET = 'documents';
@@ -205,19 +206,18 @@ export default function DocumentsPage() {
       if (error) throw error;
       if (!data) throw new Error('Storage returned no file for this document');
 
-      // Create download link
-      const url = window.URL.createObjectURL(data);
-      const link = window.document.createElement('a');
-      link.href = url;
-      link.download = document.file_name;
-      window.document.body.appendChild(link);
-      link.click();
-      window.document.body.removeChild(link);
-      // Revoking immediately can cancel the download before the browser has
-      // finished reading the blob.
-      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+      // downloadBlob handles both platforms: an anchor click on the web, and a
+      // real file write + share sheet inside the Capacitor WebView, which has
+      // no download manager of its own.
+      const result = await downloadBlob(data, document.file_name, {
+        shareTitle: document.file_name,
+      });
 
-      toast.success('Document downloaded');
+      toast.success(
+        result.via === 'native'
+          ? 'Saved to your device — choose where to keep it'
+          : 'Document downloaded'
+      );
     } catch (error: any) {
       console.error('Document download failed:', error);
       toast.error(error.message || 'Failed to download document');

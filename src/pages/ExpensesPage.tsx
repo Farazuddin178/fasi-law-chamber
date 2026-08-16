@@ -3,6 +3,7 @@ import { supabase, Expense, Case, User } from '@/lib/supabase';
 import { Plus, DollarSign, CheckCircle, XCircle, Clock, Filter, X, FileDown, Repeat, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { saveHtmlDocument, canPrintToPdf } from '@/lib/download';
 
 export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -193,6 +194,20 @@ export default function ExpensesPage() {
         <tfoot><tr><td>Total</td><td class="num">${grandTotal.toLocaleString('en-IN')}</td>
           <td colspan="5"></td></tr></tfoot>
       </table></body></html>`;
+
+    // A Capacitor WebView has no print dialog, so save the document instead and
+    // let the OS share sheet decide where it goes.
+    if (!canPrintToPdf()) {
+      saveHtmlDocument(html, `expenses_${new Date().toISOString().slice(0, 10)}`, {
+        shareTitle: 'Expense report',
+      })
+        .then(() => toast.success('Saved to your device — choose where to keep it'))
+        .catch((err) => {
+          console.error('Expense export failed:', err);
+          toast.error(err?.message || 'Failed to save the report');
+        });
+      return;
+    }
 
     const win = window.open('', '_blank');
     if (!win) {
