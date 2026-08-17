@@ -378,11 +378,11 @@ export default function CalendarPage() {
       </div>
 
       {/* Main Calendar Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         {/* Calendar */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 min-w-0">
           {/* Month Navigation */}
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
             <button
               onClick={goToPreviousMonth}
               className="p-2 hover:bg-gray-100 rounded-lg transition"
@@ -400,20 +400,21 @@ export default function CalendarPage() {
             </button>
           </div>
 
-          {/* Day Headers */}
-          <div className="grid grid-cols-7 gap-2 mb-4">
+          {/* Day Headers — single letter on phones, where "Wed" will not fit */}
+          <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 sm:mb-4">
             {dayNames.map(day => (
-              <div key={day} className="text-center text-sm font-semibold text-gray-600 py-2">
-                {day}
+              <div key={day} className="text-center text-[11px] sm:text-sm font-semibold text-gray-600 py-1 sm:py-2">
+                <span className="sm:hidden">{day.charAt(0)}</span>
+                <span className="hidden sm:inline">{day}</span>
               </div>
             ))}
           </div>
 
           {/* Calendar Grid */}
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {/* Empty cells for days before month starts */}
             {Array.from({ length: firstDay }).map((_, i) => (
-              <div key={`empty-${i}`} className="aspect-square bg-gray-50 rounded-lg"></div>
+              <div key={`empty-${i}`} className="aspect-square bg-gray-50 rounded-md sm:rounded-lg"></div>
             ))}
 
             {/* Day cells */}
@@ -424,6 +425,11 @@ export default function CalendarPage() {
                 day === today.getDate() &&
                 currentDate.getMonth() === today.getMonth() &&
                 currentDate.getFullYear() === today.getFullYear();
+
+              const isSelected =
+                selectedDate.getDate() === day &&
+                selectedDate.getMonth() === currentDate.getMonth() &&
+                selectedDate.getFullYear() === currentDate.getFullYear();
 
               const counts = dayEvents.reduce(
                 (acc, event) => {
@@ -440,16 +446,46 @@ export default function CalendarPage() {
                     setSelectedDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day));
                     setSelectedEvent(null);
                   }}
-                  className={`aspect-square rounded-lg border-2 p-2 cursor-pointer transition hover:shadow-md ${
-                    isToday
+                  className={`aspect-square rounded-md sm:rounded-lg border sm:border-2 p-1 sm:p-2 cursor-pointer transition hover:shadow-md overflow-hidden ${
+                    isSelected
+                      ? 'border-blue-600 ring-2 ring-blue-200 bg-blue-50'
+                      : isToday
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 bg-white hover:border-blue-300'
                   }`}
                 >
-                  <p className={`text-sm font-semibold mb-1 ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>
+                  <p
+                    className={`text-xs sm:text-sm font-semibold sm:mb-1 text-center sm:text-left ${
+                      isToday ? 'text-blue-600' : 'text-gray-700'
+                    }`}
+                  >
                     {day}
                   </p>
-                  <div className="space-y-1">
+
+                  {/* Phones: coloured dots only. A 360px screen gives each cell
+                      about 44px, which cannot hold event titles — cramming them
+                      in is what made this grid unreadable. Tap the day to see
+                      the full list underneath. */}
+                  {dayEvents.length > 0 && (
+                    <div className="sm:hidden flex flex-wrap justify-center gap-0.5 mt-0.5">
+                      {dayEvents.slice(0, 4).map(event => (
+                        <span
+                          key={event.id}
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            event.type === 'listing'
+                              ? 'bg-purple-500'
+                              : event.type === 'hearing'
+                              ? 'bg-orange-500'
+                              : event.type === 'causelist'
+                              ? 'bg-teal-500'
+                              : 'bg-gray-500'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="hidden sm:block space-y-1">
                     {dayEvents.slice(0, 2).map(event => (
                       <div
                         key={event.id}

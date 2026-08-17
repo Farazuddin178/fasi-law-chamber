@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   // Must match the applicationId in AndroidManifest.xml / Bundle Identifier in Xcode
   appId: 'com.tshclegal.app',
-  appName: 'TSHC Legal',
+  appName: 'Fasi Law Chamber',
   // Points to the Vite build output folder
   webDir: 'dist',
 

@@ -6,7 +6,14 @@ services:
     region: oregon
     plan: free
     buildCommand: bash build.sh
-    startCommand: gunicorn proxy:app --bind 0.0.0.0:$PORT --timeout 120
+    # IMPORTANT: this overrides the Procfile, so it must carry the concurrency
+    # settings itself. It previously used gunicorn's defaults — ONE sync worker —
+    # which serialized every backend request in the app: case lookups, cause
+    # lists, WhatsApp/email notification calls and the batch scraper all queued
+    # behind each other, one at a time. That is why actions felt slow app-wide
+    # and notifications arrived long after the event.
+    # 2 workers x 4 threads = 8 concurrent requests, matching the Procfile.
+    startCommand: gunicorn proxy:app --bind 0.0.0.0:$PORT --timeout 180 --workers 2 --threads 4 --worker-class gthread
     envVars:
       - key: PYTHON_VERSION
         value: "3.13.4"

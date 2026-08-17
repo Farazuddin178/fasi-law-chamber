@@ -159,6 +159,29 @@ export default function TasksPage() {
       return;
     }
 
+    /**
+     * Tell an assignee about their task.
+     *
+     * Order matters. This used to await notifyTaskAssigned (the Render backend,
+     * which sends WhatsApp and email) *before* writing the in-app notification
+     * row — so on a cold Render instance the row that actually drives the
+     * recipient's realtime notification was delayed by seconds, and if the
+     * backend threw, it was never written at all. That is why notifications
+     * arrived long after the fact, or not at all.
+     *
+     * The database row goes first because it is fast and is what reaches the
+     * user's phone; WhatsApp/email are fired afterwards and never awaited.
+     */
+    function notifyAssignee(taskId: string, assigneeId: string, title: string) {
+      void notificationManager
+        .notifyTaskAssignment(title, assigneeId, user?.full_name || 'Admin')
+        .catch((err) => console.error('In-app task notification failed:', err));
+
+      void notificationHelpers
+        .notifyTaskAssigned(taskId, assigneeId, user?.full_name || 'Admin')
+        .catch((err) => console.error('WhatsApp/email task notification failed:', err));
+    }
+
     try {
       // Clean up empty strings to null for bigint fields
       const cleanedData = {
@@ -169,13 +192,36 @@ export default function TasksPage() {
       };
 
       if (isEditing && editingTaskId) {
-        // Update existing task
+        const previous = tasks.find((t) => t.id === editingTaskId);
+        const assigneeChanged =
+          !!cleanedData.assigned_to && previous?.assigned_to !== cleanedData.assigned_to;
+        // Reassigning a declined task has to clear the decline, otherwise the
+        // task keeps status 'unaccepted' and stays parked in the "Unaccepted
+        // Tasks" section forever — which is why reassigning appeared to do
+        // nothing. Re-assigning to the *same* person is a deliberate retry, so
+        // that resets it too.
+        const isRetry = previous?.status === 'unaccepted' && !!cleanedData.assigned_to;
+
+        const updatePayload: any = { ...cleanedData };
+        if (assigneeChanged || isRetry) {
+          updatePayload.status = 'pending';
+          updatePayload.decline_reason = null;
+        }
+
         const { error } = await supabase
           .from('tasks')
-          .update(cleanedData)
+          .update(updatePayload)
           .eq('id', editingTaskId);
 
         if (error) throw error;
+
+        // Reassignment must notify the new assignee. This previously only
+        // happened when a task was first created, so anyone who received a task
+        // by reassignment was never told.
+        if (cleanedData.assigned_to && (assigneeChanged || isRetry)) {
+          notifyAssignee(editingTaskId, cleanedData.assigned_to, formData.title);
+        }
+
         toast.success('Task updated successfully');
       } else {
         // Create new task
@@ -190,37 +236,8 @@ export default function TasksPage() {
 
         if (error) throw error;
         
-        // Send notification if task is assigned
         if (cleanedData.assigned_to && data) {
-          const assignedUser = users.find(u => u.id === cleanedData.assigned_to);
-          if (assignedUser) {
-            // No notification is raised here on purpose: this code runs on the
-            // assigner's device, so "You have been assigned…" was going to the
-            // wrong person. notifyTaskAssignment below writes the notification
-            // row, and the assignee's own realtime subscription
-            // (useNotificationListener) pops it on their phone.
-
-            // Send WhatsApp & Email notifications via backend
-            try {
-              // 1. Send External (WhatsApp + Email)
-              await notificationHelpers.notifyTaskAssigned(
-                data.id,
-                cleanedData.assigned_to,
-                user?.full_name || 'Admin'
-              );
-
-              // 2. Send In-App Notification (Database)
-              await notificationManager.notifyTaskAssignment(
-                formData.title,
-                cleanedData.assigned_to,
-                user?.full_name || 'Admin'
-              );
-              
-              console.log('All notifications (External & In-App) sent successfully');
-            } catch (notifError) {
-              console.error('Failed to send notifications:', notifError);
-            }
-          }
+          notifyAssignee(data.id, cleanedData.assigned_to, formData.title);
         }
 
         toast.success('Task created successfully');
@@ -399,7 +416,30 @@ export default function TasksPage() {
         };
       }
 
-      // Update task status
+      const taskTitle = selectedTask.title;
+
+      // ── Close the UI and update the list immediately ─────────────────────
+      // Accept / Pass on used to feel frozen for several seconds because this
+      // handler awaited a call to the Render backend (which sends WhatsApp and
+      // email) *before* dismissing the modal, then awaited a comment insert,
+      // then refetched every task. Only the task row update actually needs to
+      // finish before the user can move on; everything else is done in the
+      // background. The local list is patched optimistically so the new status
+      // shows without a round trip.
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, ...updateData } : t))
+      );
+      toast.success(
+        response === 'accepted'
+          ? 'Task accepted and marked as In Progress!'
+          : 'Task declined successfully!'
+      );
+      setShowTaskResponse(false);
+      setPassOnReason('');
+      setShowTaskDetail(false);
+      setSelectedTask(null);
+
+      // Update task status — the one write we must confirm.
       const { error: taskError } = await supabase
         .from('tasks')
         .update(updateData)
@@ -407,50 +447,44 @@ export default function TasksPage() {
 
       if (taskError) throw taskError;
 
-      // Notify admin of status change via backend
-      try {
-        await notificationHelpers.notifyTaskStatusChange(
-          selectedTask.id,
-          user?.full_name || 'User',
-          updateData.status
-        );
-      } catch (notifError) {
-        console.error('Failed to send admin notification:', notifError);
-      }
-
-      // Show notification for status change
+      // Confirm to this user on their own device.
       void showNotification({
         title: 'Task Updated',
         body:
           response === 'accepted'
-            ? `✅ You accepted: ${selectedTask.title}`
-            : `❌ You declined: ${selectedTask.title}`,
+            ? `✅ You accepted: ${taskTitle}`
+            : `❌ You declined: ${taskTitle}`,
         tag: 'task-status-notification',
       });
 
-      // Add system comment for visibility
+      // ── Background work — never blocks the UI ────────────────────────────
+      void notificationHelpers
+        .notifyTaskStatusChange(taskId, user?.full_name || 'User', updateData.status)
+        .catch((err) => console.error('Failed to send admin notification:', err));
+
       if (user?.id) {
-        const systemComment = response === 'accepted'
-          ? `${user?.full_name || 'User'} accepted this task and started working on it`
-          : `${user?.full_name || 'User'} declined this task. Reason: ${reason || 'No reason provided'}`;
+        const systemComment =
+          response === 'accepted'
+            ? `${user?.full_name || 'User'} accepted this task and started working on it`
+            : `${user?.full_name || 'User'} declined this task. Reason: ${reason || 'No reason provided'}`;
 
-        await supabase.from('task_comments').insert([
-          {
-            task_id: taskId,
-            user_id: user.id,
-            comment: systemComment,
-            created_at: new Date().toISOString()
-          }
-        ]);
+        void supabase
+          .from('task_comments')
+          .insert([
+            {
+              task_id: taskId,
+              user_id: user.id,
+              comment: systemComment,
+              created_at: new Date().toISOString(),
+            },
+          ])
+          .then(({ error }) => {
+            if (error) console.error('System comment insert failed:', error);
+          });
       }
-
-      toast.success(response === 'accepted' ? 'Task accepted and marked as In Progress!' : 'Task declined successfully!');
-      setShowTaskResponse(false);
-      setPassOnReason('');
-      setShowTaskDetail(false);
-      setSelectedTask(null);
-      loadTasks(); // Reload tasks to update the list
     } catch (error: any) {
+      // The optimistic patch may now be wrong — resync from the server.
+      loadTasks();
       toast.error(error.message || 'Failed to respond to task');
     }
   };
@@ -726,10 +760,14 @@ export default function TasksPage() {
                 className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 hover:shadow-md transition cursor-pointer"
                 onClick={() => openTaskDetail(task)}
               >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{task.title}</h3>
+                {/* Stacks on phones. Previously a single non-wrapping row whose
+                    flex-1 text column had no min-w-0, so a long title pushed the
+                    Edit/Delete/Comments buttons outside the card and they were
+                    clipped away entirely on a narrow screen. */}
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <h3 className="text-lg font-semibold text-gray-900 break-words">{task.title}</h3>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
                         {task.priority.toUpperCase()}
                       </span>
@@ -771,30 +809,38 @@ export default function TasksPage() {
                     </div>
                   </div>
                   
-                  <div className="flex gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
+                  {/* shrink-0 keeps these from being squeezed to zero width.
+                      Labelled on phones, where bare icons are easy to miss. */}
+                  <div
+                    className="flex flex-wrap items-center gap-2 shrink-0 border-t sm:border-t-0 border-gray-100 pt-3 sm:pt-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <button
                       onClick={() => handleEdit(task)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      className="inline-flex items-center gap-1.5 px-2 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition"
                       title="Edit Task"
                     >
-                      <Edit className="w-4 h-4" />
+                      <Edit className="w-4 h-4 shrink-0" />
+                      <span className="sm:hidden">Edit</span>
                     </button>
                     {/* Only admins can delete tasks, not restricted admins */}
                     {user?.role === 'admin' && (
                       <button
                         onClick={() => handleDelete(task.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                        className="inline-flex items-center gap-1.5 px-2 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition"
                         title="Delete Task"
                       >
-                        <Trash className="w-4 h-4" />
+                        <Trash className="w-4 h-4 shrink-0" />
+                        <span className="sm:hidden">Delete</span>
                       </button>
                     )}
                     <button
                       onClick={() => openTaskDetail(task)}
-                      className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition"
+                      className="inline-flex items-center gap-1.5 px-2 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition"
                       title="View Comments"
                     >
-                      <MessageCircle className="w-4 h-4" />
+                      <MessageCircle className="w-4 h-4 shrink-0" />
+                      <span className="sm:hidden">Comments</span>
                     </button>
                   </div>
                 </div>
