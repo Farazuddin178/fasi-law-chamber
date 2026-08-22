@@ -61,6 +61,25 @@ async function ensureNativePermission(): Promise<boolean> {
       status = await LocalNotifications.requestPermissions();
     }
     nativePermissionGranted = status.display === 'granted';
+
+    // Android 8+ drops any notification posted to a channel that does not
+    // exist, so the channel must be created before the first schedule() call.
+    // createChannel is a no-op on iOS and is safe to call repeatedly.
+    if (nativePermissionGranted && Capacitor.getPlatform() === 'android') {
+      try {
+        await LocalNotifications.createChannel({
+          id: 'fasi_default',
+          name: 'Fasi Law Chamber',
+          description: 'Task assignments, case updates and reminders',
+          importance: 5, // IMPORTANCE_HIGH — heads-up banner, like WhatsApp
+          visibility: 1, // VISIBILITY_PUBLIC
+          vibration: true,
+          sound: undefined,
+        });
+      } catch (channelErr) {
+        console.warn('[notify] Could not create notification channel:', channelErr);
+      }
+    }
   } catch (err) {
     console.warn('[notify] Local notification permission check failed:', err);
     nativePermissionGranted = false;
@@ -109,8 +128,13 @@ export async function showNotification(opts: NotifyOptions): Promise<void> {
             title,
             body,
             // No `schedule` field => deliver immediately.
-            // No `smallIcon` => Capacitor falls back to the app icon, so this
-            // does not depend on a drawable that may not exist.
+            // smallIcon is REQUIRED on Android. Without it Capacitor falls back
+            // to @mipmap/ic_launcher, an adaptive icon, which Android cannot use
+            // as a notification small icon - the notification then silently
+            // fails to post. ic_stat_notify is a flat white silhouette.
+            smallIcon: 'ic_stat_notify',
+            iconColor: '#FBBF24',
+            channelId: 'fasi_default',
             autoCancel: true,
           },
         ],

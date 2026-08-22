@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { FolderOpen, Gavel, FileText, Users, CheckCircle, Clock, Eye, AlertCircle, TrendingUp, BarChart3, Bell, Search, ThumbsUp, ThumbsDown, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
-import RecentAnnouncement24hr from '@/components/RecentAnnouncement24hr';
 import { RecordCard, RecordCardList } from '@/components/ui';
 
 // Helper function to calculate time remaining
@@ -26,6 +25,7 @@ const getTimeRemaining = (dueDate: string) => {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalCases: 0,
     hearings: 0,
@@ -41,7 +41,6 @@ export default function DashboardPage() {
   const [filteredCases, setFilteredCases] = useState<any[]>([]);
   const [userTasks, setUserTasks] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isFullAdmin, setIsFullAdmin] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
@@ -137,9 +136,6 @@ export default function DashboardPage() {
     }
   };
 
-  // Announcements are now managed on the dedicated Announcements page
-  // This section is for displaying announcements on dashboard only
-
   const loadDashboardData = async () => {
     const isAdminRole = user?.role === 'admin' || user?.role === 'restricted_admin';
     const isFullAdminRole = user?.role === 'admin';
@@ -223,20 +219,6 @@ export default function DashboardPage() {
         setUserTasks(tasksRes.data || []);
       }
 
-      // Load announcements based on user role (only get the latest one)
-      let announcementsQuery = supabase
-        .from('announcements')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      // Filter announcements based on visibility
-      if (!isAdminRole) {
-        announcementsQuery = announcementsQuery.eq('visible_to', 'all_users');
-      }
-      
-      const { data: announcementsData } = await announcementsQuery;
-      setAnnouncements(announcementsData || []);
     } catch (error: any) {
       console.error('Error loading dashboard data:', error);
     }
@@ -405,23 +387,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Announcements Section - Latest with 24hr Timer */}
-      <div className="mb-8">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex items-center space-x-3">
-            <Bell className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-bold text-gray-900">Latest Announcement</h2>
-          </div>
-        </div>
-
-        {announcements.length > 0 ? (
-          <RecentAnnouncement24hr announcement={announcements[0]} />
-        ) : (
-          <div className="bg-white border border-gray-200 rounded-xl p-6 text-gray-500">
-            No active announcements right now.
-          </div>
-        )}
-      </div>
 
       {/* My Tasks / Tasks Assigned Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -443,11 +408,23 @@ export default function DashboardPage() {
               const assignedUser = users.find(u => u.id === task.assigned_to);
               
               return (
-                <div key={task.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-gray-900">{task.title}</h3>
+                <div
+                  key={task.id}
+                  onClick={() => navigate('/tasks')}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate('/tasks');
+                    }
+                  }}
+                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-blue-300 active:bg-gray-50 transition cursor-pointer"
+                >
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-gray-900 break-words">{task.title}</h3>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           task.status === 'completed' ? 'bg-green-100 text-green-800' :
                           task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
@@ -464,7 +441,7 @@ export default function DashboardPage() {
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">{task.description}</p>
                       )}
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ml-2 ${
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium shrink-0 self-start ${
                       task.priority === 'urgent' ? 'bg-red-100 text-red-800' :
                       task.priority === 'high' ? 'bg-orange-100 text-orange-800' :
                       task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
@@ -513,7 +490,11 @@ export default function DashboardPage() {
                   )}
 
                   {!isAdmin && task.assigned_to === user?.id && task.status === 'pending' && (
-                    <div className="flex gap-2 pt-3 border-t border-gray-200">
+                    <div
+                      className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-gray-200"
+                      /* the card navigates to /tasks; these actions must not */
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         onClick={() => handleTaskApprove(task.id)}
                         className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 text-sm"

@@ -32,6 +32,13 @@ const config: CapacitorConfig = {
       backgroundColor: '#1e293b',
     },
 
+    LocalNotifications: {
+      // Flat white silhouette in res/drawable. Android renders the small icon
+      // as a monochrome mask, so an adaptive/colour icon cannot be used here.
+      smallIcon: 'ic_stat_notify',
+      iconColor: '#FBBF24',
+    },
+
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },

@@ -25,7 +25,6 @@ import {
   BookOpen,
   CalendarDays,
   Link2,
-  Megaphone,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import NotificationBell from './NotificationBell';
@@ -77,7 +76,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> },
     { name: 'Documents', path: '/documents', icon: <FileText className="w-5 h-5" /> },
     { name: 'Notifications', path: '/notifications', icon: <Bell className="w-5 h-5" /> },
-    { name: 'Announcements', path: '/announcements', icon: <Megaphone className="w-5 h-5" />, adminOnly: true },
     { name: 'Analytics', path: '/analytics', icon: <BarChart3 className="w-5 h-5" /> },
     { name: 'Expenses', path: '/expenses', icon: <Receipt className="w-5 h-5" /> },
     { name: 'Users', path: '/users', icon: <Users className="w-5 h-5" />, adminOnly: true },

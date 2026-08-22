@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Notification small icon.
+
+    Android renders this as a MONOCHROME mask: every non-transparent pixel is
+    painted with the accent colour and everything else is dropped. It therefore
+    has to be a flat white silhouette on transparency - no gradients, no colours.
+
+    This must exist and must be referenced explicitly. Without a smallIcon,
+    Capacitor falls back to @mipmap/ic_launcher, which is an adaptive icon, and
+    Android cannot use an adaptive icon as a notification small icon - the
+    notification then fails to post at all on many devices, silently.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+
+    <!-- Central column -->
+    <path android:fillColor="#FFFFFF" android:pathData="M11.25,5h1.5v14h-1.5z" />
+    <!-- Base -->
+    <path android:fillColor="#FFFFFF" android:pathData="M7,19h10v1.5H7z" />
+    <!-- Cross beam -->
+    <path android:fillColor="#FFFFFF" android:pathData="M4,7h16v1.4H4z" />
+    <!-- Pivot -->
+    <path android:fillColor="#FFFFFF" android:pathData="M12,4m-1.6,0a1.6,1.6 0,1 1,3.2 0a1.6,1.6 0,1 1,-3.2 0" />
+    <!-- Left pan -->
+    <path android:fillColor="#FFFFFF" android:pathData="M1.8,10.5h7.4l-3.7,4.6z" />
+    <!-- Right pan -->
+    <path android:fillColor="#FFFFFF" android:pathData="M14.8,10.5h7.4l-3.7,4.6z" />
+</vector>

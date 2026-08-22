@@ -24,7 +24,6 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const StorageMonitoringPage = lazy(() => import('./pages/StorageMonitoringPage'));
 const GitHubIntegrationPage = lazy(() => import('./pages/GitHubIntegrationPage'));
-const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'));
 const LinksPage = lazy(() => import('./pages/LinksPage'));
 const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 const CaseLookupPage = lazy(() => import('./pages/CaseLookupPage'));
@@ -75,7 +74,6 @@ function AppRoutes() {
                 <Route path="/users" element={<UsersPage />} />
                 <Route path="/storage" element={<StorageMonitoringPage />} />
                 <Route path="/github" element={<GitHubIntegrationPage />} />
-                <Route path="/announcements" element={<AnnouncementsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/calendar" element={<CalendarPage />} />
                 <Route path="/advocate-report" element={<AdvocateReportPage />} />

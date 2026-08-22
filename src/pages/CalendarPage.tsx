@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Calendar, Clock, Printer, ListChecks } from 
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { BACKEND_URL } from '@/lib/api';
+import { saveHtmlDocument, canPrintToPdf } from '@/lib/download';
 
 interface CalendarEvent {
   id: string;
@@ -238,8 +239,106 @@ export default function CalendarPage() {
     setSelectedEvent(null);
   };
 
-  const handlePrintAgenda = () => {
-    window.print();
+  /**
+   * Build a real agenda document for the selected day and print or save it.
+   *
+   * This used to be a bare window.print(), which printed the whole application
+   * chrome - sidebar, filters and all - on the web, and did nothing at all in
+   * the Capacitor WebView, which has no print dialog. Now it renders a
+   * standalone sheet: print-to-PDF on the web, saved and shared on the phone.
+   */
+  const handlePrintAgenda = async () => {
+    const dayEvents = getEventsForSelectedDate();
+    const heading = selectedDate.toLocaleDateString('en-GB', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const escape = (v: unknown) =>
+      String(v ?? '-').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const rows = dayEvents.length
+      ? dayEvents
+          .map(
+            (e, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td><strong>${escape(getEventTypeLabel(e))}</strong></td>
+              <td>${escape(e.title)}</td>
+              <td>${escape(e.status || '-')}</td>
+              <td>${escape(e.location || '-')}</td>
+              <td>${escape(e.details || '-')}</td>
+            </tr>`
+          )
+          .join('')
+      : `<tr><td colspan="6" style="text-align:center;padding:24px;color:#6b7280">
+           No events scheduled for this date
+         </td></tr>`;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>agenda_${selectedDate.toISOString().slice(0, 10)}</title>
+      <style>
+        @page { size: A4 portrait; margin: 14mm; }
+        body { font-family: Arial, sans-serif; color: #111827; padding: 16px; }
+        h1 { font-size: 20px; margin-bottom: 2px; }
+        .sub { color: #6b7280; font-size: 12px; margin-bottom: 18px; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th { background: #1f2937; color: #fff; text-align: left; padding: 8px; font-size: 11px; }
+        td { padding: 7px 8px; border-bottom: 1px solid #e5e7eb; font-size: 11px;
+             word-wrap: break-word; overflow-wrap: anywhere; vertical-align: top; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+        .foot { margin-top: 18px; border-top: 1px solid #e5e7eb; padding-top: 10px;
+                color: #6b7280; font-size: 11px; text-align: center; }
+      </style></head><body>
+      <h1>Daily Agenda &mdash; Fasi Law Chamber</h1>
+      <div class="sub">${escape(heading)} &nbsp;|&nbsp; ${dayEvents.length} item(s)
+        &nbsp;|&nbsp; Generated ${escape(new Date().toLocaleString())}</div>
+      <table>
+        <thead><tr>
+          <th style="width:5%">#</th><th style="width:13%">Type</th>
+          <th style="width:30%">Title</th><th style="width:12%">Status</th>
+          <th style="width:20%">Court / Judge</th><th style="width:20%">Details</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="foot">Electronically generated agenda. For office use only.</div>
+      </body></html>`;
+
+    const fileName = `agenda_${selectedDate.toISOString().slice(0, 10)}`;
+
+    // The phone has no print dialog, so save the sheet and offer the share
+    // sheet instead of silently doing nothing.
+    if (!canPrintToPdf()) {
+      try {
+        await saveHtmlDocument(html, fileName, { shareTitle: `Agenda ${heading}` });
+        toast.success('Agenda saved - choose where to keep it');
+      } catch (err: any) {
+        console.error('Agenda save failed:', err);
+        toast.error(err?.message || 'Could not save the agenda');
+      }
+      return;
+    }
+
+    const win = window.open('', '_blank');
+    if (!win) {
+      toast.error('Popup blocked. Please allow popups to print the agenda.');
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+
+    const triggerPrint = () => {
+      win.focus();
+      win.print();
+    };
+    if (win.document.readyState === 'complete') setTimeout(triggerPrint, 0);
+    else win.onload = triggerPrint;
+
+    toast.success('Print dialog opened - choose "Save as PDF"');
   };
 
   const monthNames = [

@@ -77,23 +77,46 @@ export async function downloadBlob(
   const isText = /^text\/|application\/(json|xml)/.test(blob.type);
   const data = isText ? await blob.text() : await blobToBase64(blob);
 
-  const written = await Filesystem.writeFile({
-    path: name,
-    data,
-    directory: Directory.Documents,
-    encoding: isText ? Encoding.UTF8 : undefined,
-    recursive: true,
-  });
+  // Directory availability varies by Android version and OEM. Documents is the
+  // nicest place for the user, but it is not always writable, and a single
+  // hard-coded choice made downloads fail outright with no fallback. Cache
+  // always works, and the share sheet lets the file be saved anywhere anyway.
+  const candidates = [Directory.Documents, Directory.External, Directory.Cache];
+  let written: { uri: string } | null = null;
+  let lastError: unknown = null;
 
-  // Hand it to the OS so the user can put it wherever they want. If the share
-  // sheet is unavailable the file is still saved, so this must not throw.
+  for (const directory of candidates) {
+    try {
+      written = await Filesystem.writeFile({
+        path: name,
+        data,
+        directory,
+        encoding: isText ? Encoding.UTF8 : undefined,
+        recursive: true,
+      });
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  if (!written) {
+    throw new Error(
+      `Could not save the file to this device: ${
+        lastError instanceof Error ? lastError.message : String(lastError)
+      }`
+    );
+  }
+
+  // Hand it to the OS so the user can put it wherever they want. A dismissed
+  // share sheet is not an error; the file is already saved either way.
   try {
     await Share.share({
       title: opts.shareTitle ?? name,
       files: [written.uri],
     });
-  } catch {
-    /* user dismissed the sheet, or sharing is unsupported — file is saved */
+  } catch (shareErr) {
+    console.warn('[download] Share sheet unavailable or dismissed:', shareErr);
   }
 
   return { via: 'native', uri: written.uri };

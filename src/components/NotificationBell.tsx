@@ -226,7 +226,7 @@ export default function NotificationBell() {
       >
         <Bell className="w-6 h-6" />
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
+          <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full ring-2 ring-slate-900">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -235,10 +235,17 @@ export default function NotificationBell() {
       {showDropdown && (
         <>
           <div
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-10 bg-black/20 sm:bg-transparent"
             onClick={() => setShowDropdown(false)}
           />
-          <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-20 max-h-[600px] overflow-hidden flex flex-col">
+          <div
+            className="
+              fixed left-2 right-2 top-16 w-auto
+              sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96
+              bg-white rounded-xl shadow-2xl border border-gray-200 z-20
+              max-h-[70vh] sm:max-h-[600px] overflow-hidden flex flex-col
+            "
+          >
             <div className="p-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-blue-600 to-blue-700">
               <h3 className="text-lg font-bold text-white">Notifications</h3>
               <div className="flex items-center gap-2">

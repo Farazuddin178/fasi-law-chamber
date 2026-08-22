@@ -16,6 +16,8 @@ export default function TasksPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [comments, setComments] = useState<(TaskComment & { user?: User })[]>([]);
   const [newComment, setNewComment] = useState('');
+  /** taskId -> number of comments, shown as a badge on each task card. */
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [users, setUsers] = useState<User[]>([]);
   const [cases, setCases] = useState<Case[]>([]);
   const { user } = useAuth();
@@ -55,7 +57,7 @@ export default function TasksPage() {
   }, [tasks, statusFilter, priorityFilter, assignedFilter, searchTerm]);
 
   const loadInitialData = async () => {
-    await Promise.all([loadTasks(), loadUsers(), loadCases()]);
+    await Promise.all([loadTasks(), loadUsers(), loadCases(), loadCommentCounts()]);
   };
 
   const loadTasks = async () => {
@@ -71,6 +73,26 @@ export default function TasksPage() {
       toast.error(error.message || 'Failed to load tasks');
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Comment tallies for the badges on the task list. PostgREST cannot GROUP BY,
+   * so pull just the task_id column (cheap) and tally client-side.
+   */
+  const loadCommentCounts = async () => {
+    try {
+      const { data, error } = await supabase.from('task_comments').select('task_id');
+      if (error) throw error;
+
+      const counts: Record<string, number> = {};
+      (data || []).forEach((row: any) => {
+        if (!row?.task_id) return;
+        counts[row.task_id] = (counts[row.task_id] || 0) + 1;
+      });
+      setCommentCounts(counts);
+    } catch (err) {
+      console.error('Failed to load comment counts:', err);
     }
   };
 
@@ -370,22 +392,51 @@ export default function TasksPage() {
       // task.id is a uuid — never coerce it to a number.
       const taskId = selectedTask.id;
 
-      const { error, data } = await supabase
+      const text = newComment.trim();
+      const createdAt = new Date().toISOString();
+      // Optimistic id so React has a stable key; replaced when the realtime
+      // subscription reloads the thread from the server.
+      const tempId = `pending-${Date.now()}`;
+
+      // Show the comment immediately. It previously only appeared after the
+      // insert round-tripped and the realtime handler refetched the whole
+      // thread, which made commenting feel unresponsive.
+      setComments((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          task_id: taskId,
+          user_id: user?.id,
+          comment: text,
+          created_at: createdAt,
+          user,
+        } as any,
+      ]);
+      setNewComment('');
+      setCommentCounts((prev) => ({ ...prev, [taskId]: (prev[taskId] || 0) + 1 }));
+
+      const { error } = await supabase
         .from('task_comments')
         .insert([
           {
             task_id: taskId,
             user_id: user?.id,
-            comment: newComment.trim(),
-            created_at: new Date().toISOString()
-          }
+            comment: text,
+            created_at: createdAt,
+          },
         ]);
 
-      console.log('Insert result:', { error, data });
-      if (error) throw error;
-      
-      setNewComment('');
-      toast.success('Comment sent successfully');
+      if (error) {
+        // Roll the optimistic entry back so the UI never shows a comment that
+        // was not actually saved.
+        setComments((prev) => prev.filter((c: any) => c.id !== tempId));
+        setCommentCounts((prev) => ({
+          ...prev,
+          [taskId]: Math.max(0, (prev[taskId] || 1) - 1),
+        }));
+        setNewComment(text);
+        throw error;
+      }
     } catch (error: any) {
       console.error('Send comment error:', error);
       toast.error(error.message || 'Failed to send comment');
@@ -555,7 +606,7 @@ export default function TasksPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tasks</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Tasks</h1>
           <p className="text-gray-600 mt-1">Manage tasks and collaborate with your team</p>
         </div>
         <button
@@ -563,9 +614,9 @@ export default function TasksPage() {
             resetForm();
             setShowCreateModal(true);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          className="w-full sm:w-auto justify-center inline-flex items-center gap-2 px-4 py-3 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition font-medium shadow-sm"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-5 h-5 shrink-0" />
           New Task
         </button>
       </div>
@@ -672,10 +723,10 @@ export default function TasksPage() {
                   key={task.id}
                   className="bg-white rounded-lg p-4 border-2 border-red-300 hover:border-red-400 transition"
                 >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">{task.title}</h3>
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900 break-words">{task.title}</h3>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
                           {task.priority.toUpperCase()}
                         </span>
@@ -718,20 +769,21 @@ export default function TasksPage() {
                       </div>
                     </div>
                     
-                    <div className="flex gap-2 ml-4">
+                    <div className="flex gap-2 shrink-0 border-t sm:border-t-0 border-red-200 pt-3 sm:pt-0">
                       <button
                         onClick={() => handleEdit(task)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                        className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition text-sm font-medium"
                         title="Edit & Reassign Task"
                       >
                         Reassign
                       </button>
                       <button
                         onClick={() => handleDelete(task.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                        className="inline-flex items-center gap-1.5 px-3 py-2.5 sm:py-2 text-red-600 hover:bg-red-100 rounded-lg transition text-sm font-medium"
                         title="Delete Task"
                       >
-                        <Trash className="w-4 h-4" />
+                        <Trash className="w-4 h-4 shrink-0" />
+                        <span className="sm:hidden">Delete</span>
                       </button>
                     </div>
                   </div>
@@ -841,6 +893,11 @@ export default function TasksPage() {
                     >
                       <MessageCircle className="w-4 h-4 shrink-0" />
                       <span className="sm:hidden">Comments</span>
+                      {commentCounts[task.id] > 0 && (
+                        <span className="ml-0.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                          {commentCounts[task.id]}
+                        </span>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -852,8 +909,8 @@ export default function TasksPage() {
 
       {/* Create/Edit Task Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-2xl w-full max-h-[92vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-900">
                 {isEditing ? 'Edit Task' : 'Create New Task'}
@@ -994,8 +1051,8 @@ export default function TasksPage() {
 
       {/* Task Detail with Comments Modal */}
       {showTaskDetail && selectedTask && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-4xl w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col">
             <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-900">Task Details & Discussion</h2>
               <button
@@ -1138,8 +1195,8 @@ export default function TasksPage() {
 
       {/* Task Response Modal (Pass On) */}
       {showTaskResponse && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-md w-full max-h-[92vh] overflow-y-auto">
             <div className="border-b border-gray-200 px-6 py-4">
               <h2 className="text-lg font-bold text-gray-900">Pass On Task</h2>
             </div>

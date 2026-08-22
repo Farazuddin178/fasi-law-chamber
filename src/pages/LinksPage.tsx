@@ -17,6 +17,13 @@ export default function LinksPage() {
 
   const quickLinks: QuickLink[] = [
     {
+      title: 'Fasi Law Chamber (Website)',
+      description: 'Open the full web app in a browser',
+      url: 'https://fasi-law-chamber.onrender.com',
+      icon: '⚖️',
+      category: 'Chamber',
+    },
+    {
       title: 'Live Streaming',
       description: 'Watch live court proceedings',
       url: 'https://tshc.vconsol.com/live-courts',
