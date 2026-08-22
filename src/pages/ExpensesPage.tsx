@@ -309,12 +309,11 @@ export default function ExpensesPage() {
     }
 
     try {
-      // Real ids are sent as-is. expenses.submitted_by is currently typed uuid
-      // with no foreign key while users.id is not a uuid, so Postgres rejects
-      // the whole INSERT. Instead of permanently discarding attribution, the
-      // retry below drops only the field the database actually complained
-      // about, so attribution resumes by itself once the column types are
-      // reconciled (supabase_fix_owner_column_types.sql).
+      // Real ids are sent as-is. expenses.submitted_by is uuid and matches
+      // users.id, and expenses.case_id is bigint and matches cases.id, so this
+      // is correct. The retry below is a safety net for any bigint/uuid
+      // mismatch: it drops only the field the database complained about and
+      // logs it, rather than throwing away what the user entered.
       const base: Record<string, any> = {
         amount: parseFloat(formData.amount),
         category: formData.category,
@@ -354,7 +353,7 @@ export default function ExpensesPage() {
         const { payload: retryPayload, removed } = stripOffendingFields(current, offending);
         console.warn(
           `[expenses] Database rejected ${JSON.stringify(offending)} as a uuid; retrying without: ${removed.join(', ')}. ` +
-            'Run supabase_fix_owner_column_types.sql to restore attribution.'
+            'The stripped field points at a bigint/uuid column mismatch.'
         );
         ({ error } = await supabase.from('expenses').insert(retryPayload));
       }

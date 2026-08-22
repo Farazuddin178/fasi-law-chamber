@@ -21,6 +21,7 @@
 import { supabase } from './supabase';
 import toast from 'react-hot-toast';
 import { showNotification, requestNotificationPermission } from './notify';
+import { asUuidOrNull, isUuid } from './uuid';
 
 type NotificationType =
   | 'task'
@@ -49,6 +50,16 @@ interface NotificationPayload {
 
 // FIX #1: Channel name counter to ensure uniqueness per subscription
 let channelCounter = 0;
+
+/**
+ * Preserve a non-uuid entity reference (e.g. a bigint cases.id) in metadata,
+ * since related_id can only hold a uuid.
+ */
+function withRelatedRef(payload: NotificationPayload): any {
+  const base = payload.metadata || null;
+  if (!payload.relatedId || isUuid(payload.relatedId)) return base;
+  return { ...(base || {}), related_ref: payload.relatedId, related_type: payload.relatedType };
+}
 
 class NotificationManager {
   private static instance: NotificationManager;
@@ -99,9 +110,14 @@ class NotificationManager {
       message: payload.message,
       type: payload.type,
       priority: payload.priority,
-      related_id: payload.relatedId || null,
+      // notifications.related_id is a uuid column, but not every entity in this
+      // app has a uuid primary key - cases.id is a bigint. Passing a case id
+      // here made Postgres reject the insert with
+      // `invalid input syntax for type uuid: "1363"`. Non-uuid references are
+      // kept in metadata.related_ref instead of being lost.
+      related_id: asUuidOrNull(payload.relatedId),
       related_type: payload.relatedType || null,
-      metadata: payload.metadata || null,
+      metadata: withRelatedRef(payload),
       data: payload.data || null,
       is_read: false,
       read_at: null,
@@ -171,9 +187,14 @@ class NotificationManager {
       message: payload.message,
       type: payload.type,
       priority: payload.priority,
-      related_id: payload.relatedId || null,
+      // notifications.related_id is a uuid column, but not every entity in this
+      // app has a uuid primary key - cases.id is a bigint. Passing a case id
+      // here made Postgres reject the insert with
+      // `invalid input syntax for type uuid: "1363"`. Non-uuid references are
+      // kept in metadata.related_ref instead of being lost.
+      related_id: asUuidOrNull(payload.relatedId),
       related_type: payload.relatedType || null,
-      metadata: payload.metadata || null,
+      metadata: withRelatedRef(payload),
       data: payload.data || null,
       is_read: false,
       read_at: null,

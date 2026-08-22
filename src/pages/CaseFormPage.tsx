@@ -13,14 +13,10 @@ export default function CaseFormPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const userId = pickUuid((user as any)?.id, (user as any)?.user_id, (user as any)?.uid);
-  // NOTE: the real user id is sent as-is rather than being forced to a uuid.
-  // cases.created_by is currently typed uuid with no foreign key while users.id
-  // is not a uuid, so Postgres rejects the whole INSERT with
-  // `invalid input syntax for type uuid`. Rather than permanently discarding
-  // attribution, the insert below retries without the offending field only when
-  // the database actually rejects it - so once the column types are reconciled
-  // (supabase_fix_owner_column_types.sql) attribution starts working again with
-  // no further code change.
+  // The real user id is sent as-is. users.id and cases.created_by are both
+  // uuid, so this is correct; the retry below is a safety net for any future
+  // bigint/uuid mismatch (cases.id, for instance, is a bigint) and names the
+  // offending field in the console instead of losing the user's whole form.
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [caseExists, setCaseExists] = useState(false);
@@ -393,14 +389,15 @@ export default function CaseFormPage() {
           .single();
 
         // The database rejected a value as a bad uuid. Drop exactly the field(s)
-        // holding that value and save the case anyway - losing "who created it"
-        // is far better than losing the whole record the user just typed.
+        // holding that value and save the case anyway - losing one reference is
+        // far better than losing the whole record the user just typed. The
+        // stripped field name is logged so the real mismatch can be fixed.
         const offending = offendingUuidValue(error);
         if (error && offending) {
           const { payload: retryPayload, removed } = stripOffendingFields(insertPayload, offending);
           console.warn(
             `[cases] Database rejected ${JSON.stringify(offending)} as a uuid; retrying without: ${removed.join(', ')}. ` +
-              'Run supabase_fix_owner_column_types.sql to restore attribution.'
+              'The stripped field points at a bigint/uuid column mismatch.'
           );
           ({ data, error } = await supabase.from('cases').insert(retryPayload).select().single());
         }

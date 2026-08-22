@@ -143,6 +143,36 @@ reporting the column as missing.
 Where possible the app degrades rather than breaks — e.g. adding an expense
 falls back to an insert without the recurring columns when they are absent.
 
+## 5a. Primary key types are NOT uniform — check before writing an id
+
+Confirmed from `information_schema`:
+
+| column | type |
+|---|---|
+| `users.id` | **uuid** |
+| `cases.id` | **bigint** |
+| `cases.created_by` | uuid (matches `users.id`) |
+| `expenses.case_id` | bigint (matches `cases.id`) |
+| `expenses.submitted_by`, `expenses.approved_by` | uuid |
+| `documents.uploaded_by` | uuid |
+| `notifications.related_id` | uuid |
+| `tasks.id`, `task_comments.task_id` | uuid |
+
+So **user ids are UUIDs and case ids are bigints**. A case id written into any
+uuid column fails the whole statement with
+`invalid input syntax for type uuid: "1363"`. This is exactly what happened when
+`notifyCaseChange` passed a case id as `relatedId` into `notifications.related_id`.
+
+Rules:
+- `notificationManager` stores a non-uuid reference in `metadata.related_ref`
+  and leaves `related_id` NULL (`asUuidOrNull`).
+- Case and expense inserts use `offendingUuidValue` + `stripOffendingFields`
+  (`src/lib/uuid.ts`): if Postgres rejects a value as a bad uuid, only the field
+  holding that value is dropped and the record still saves, with the field name
+  logged. Never let a reference take down the user's whole form.
+- Do not "fix" this by casting ids client-side. Check the column type first —
+  `supabase_check_id_types.sql` prints all of them.
+
 ## 6. Performance notes
 
 - Route-level code splitting in `App.tsx` keeps the initial bundle ~478 kB
