@@ -41,7 +41,51 @@ export function pickUuid(...candidates: unknown[]): string | null {
  * Value for a column typed `uuid`. Returns null for anything that is not a
  * UUID, so a bad id becomes a null FK rather than a failed INSERT that loses
  * the user's work.
+ *
+ * Prefer `offendingUuidValue` + `stripOffendingFields` where the column type is
+ * not known for certain: this function throws away ids that are perfectly valid
+ * for a non-uuid column.
  */
 export function asUuidOrNull(value: unknown): string | null {
   return isUuid(value) ? (value as string).trim() : null;
+}
+
+/**
+ * Pull the offending value out of Postgres' uuid cast error, e.g.
+ *   invalid input syntax for type uuid: "1363"
+ * Returns null when the error is something else.
+ *
+ * Postgres names the VALUE, not the column, which is what makes
+ * stripOffendingFields possible.
+ */
+export function offendingUuidValue(error: unknown): string | null {
+  const text = `${(error as any)?.message ?? ''} ${(error as any)?.details ?? ''}`;
+  const match = /invalid input syntax for type uuid:\s*"([^"]*)"/i.exec(text);
+  return match ? match[1] : null;
+}
+
+/**
+ * Drop every field whose value is the one Postgres rejected.
+ *
+ * This lets a write survive a schema whose owner columns are typed `uuid` while
+ * users.id is not, without hard-coding the assumption that ids are UUIDs - so
+ * the same code keeps working after the column types are reconciled, and starts
+ * recording attribution again automatically.
+ */
+export function stripOffendingFields<T extends Record<string, any>>(
+  payload: T,
+  offending: string
+): { payload: Partial<T>; removed: string[] } {
+  const removed: string[] = [];
+  const next: Record<string, any> = {};
+
+  for (const [key, value] of Object.entries(payload)) {
+    if (value !== null && value !== undefined && String(value) === offending) {
+      removed.push(key);
+    } else {
+      next[key] = value;
+    }
+  }
+
+  return { payload: next as Partial<T>, removed };
 }

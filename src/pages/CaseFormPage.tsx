@@ -6,21 +6,21 @@ import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationManager } from '@/lib/notificationManager';
-import { pickUuid, asUuidOrNull } from '@/lib/uuid';
+import { pickUuid, offendingUuidValue, stripOffendingFields } from '@/lib/uuid';
 
 export default function CaseFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const userId = pickUuid((user as any)?.id, (user as any)?.user_id, (user as any)?.uid);
-  // created_by is a uuid column. Sending a non-uuid (a numeric row id, say)
-  // makes Postgres reject the entire statement with
-  // `invalid input syntax for type uuid`, losing the whole form. Attribution is
-  // worth less than the case record, so a bad id is stored as NULL and logged.
-  const createdByUuid = asUuidOrNull(userId);
-  if (userId && !createdByUuid) {
-    console.warn('[cases] User id is not a uuid, saving without attribution:', userId);
-  }
+  // NOTE: the real user id is sent as-is rather than being forced to a uuid.
+  // cases.created_by is currently typed uuid with no foreign key while users.id
+  // is not a uuid, so Postgres rejects the whole INSERT with
+  // `invalid input syntax for type uuid`. Rather than permanently discarding
+  // attribution, the insert below retries without the offending field only when
+  // the database actually rejects it - so once the column types are reconciled
+  // (supabase_fix_owner_column_types.sql) attribution starts working again with
+  // no further code change.
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [caseExists, setCaseExists] = useState(false);
@@ -384,14 +384,26 @@ export default function CaseFormPage() {
         navigate(`/cases/${id}`);
       } else {
         // Create new case
-        const { data, error } = await supabase
+        const insertPayload: Record<string, any> = { ...caseData, created_by: userId };
+
+        let { data, error } = await supabase
           .from('cases')
-          .insert({
-            ...caseData,
-            created_by: createdByUuid,
-          })
+          .insert(insertPayload)
           .select()
           .single();
+
+        // The database rejected a value as a bad uuid. Drop exactly the field(s)
+        // holding that value and save the case anyway - losing "who created it"
+        // is far better than losing the whole record the user just typed.
+        const offending = offendingUuidValue(error);
+        if (error && offending) {
+          const { payload: retryPayload, removed } = stripOffendingFields(insertPayload, offending);
+          console.warn(
+            `[cases] Database rejected ${JSON.stringify(offending)} as a uuid; retrying without: ${removed.join(', ')}. ` +
+              'Run supabase_fix_owner_column_types.sql to restore attribution.'
+          );
+          ({ data, error } = await supabase.from('cases').insert(retryPayload).select().single());
+        }
 
         if (error) throw error;
         

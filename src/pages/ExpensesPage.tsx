@@ -4,7 +4,7 @@ import { Plus, DollarSign, CheckCircle, XCircle, Clock, Filter, X, FileDown, Rep
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveHtmlDocument, canPrintToPdf } from '@/lib/download';
-import { asUuidOrNull } from '@/lib/uuid';
+import { offendingUuidValue, stripOffendingFields } from '@/lib/uuid';
 
 export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -283,8 +283,8 @@ export default function ExpensesPage() {
         expense_date: advanceDate(exp.expense_date, exp.recurrence_interval || 'monthly')
           .toISOString()
           .split('T')[0],
-        case_id: asUuidOrNull(exp.case_id),
-        submitted_by: asUuidOrNull((user as any)?.id),
+        case_id: exp.case_id,
+        submitted_by: (user as any)?.id ?? null,
         status: 'pending',
         is_recurring: true,
         recurrence_interval: exp.recurrence_interval || 'monthly',
@@ -309,32 +309,29 @@ export default function ExpensesPage() {
     }
 
     try {
-      // submitted_by and case_id are uuid columns. A non-uuid value makes
-      // Postgres reject the whole insert with `invalid input syntax for type
-      // uuid`, which is what stopped expenses being submitted at all.
-      const submittedBy = asUuidOrNull((user as any)?.id);
-      if ((user as any)?.id && !submittedBy) {
-        console.warn(
-          '[expenses] User id is not a uuid, saving without attribution:',
-          (user as any)?.id
-        );
-      }
-
-      const base = {
+      // Real ids are sent as-is. expenses.submitted_by is currently typed uuid
+      // with no foreign key while users.id is not a uuid, so Postgres rejects
+      // the whole INSERT. Instead of permanently discarding attribution, the
+      // retry below drops only the field the database actually complained
+      // about, so attribution resumes by itself once the column types are
+      // reconciled (supabase_fix_owner_column_types.sql).
+      const base: Record<string, any> = {
         amount: parseFloat(formData.amount),
         category: formData.category,
         description: formData.description || null,
         expense_date: formData.expense_date,
-        case_id: asUuidOrNull(formData.case_id),
-        submitted_by: submittedBy,
+        case_id: formData.case_id || null,
+        submitted_by: (user as any)?.id ?? null,
         status: 'pending',
       };
 
-      let { error } = await supabase.from('expenses').insert({
+      const withRecurring = {
         ...base,
         is_recurring: formData.is_recurring,
         recurrence_interval: formData.is_recurring ? formData.recurrence_interval : null,
-      });
+      };
+
+      let { error } = await supabase.from('expenses').insert(withRecurring);
 
       // The recurring columns only exist once supabase_expenses_recurring.sql
       // has been run. Until then PostgREST rejects the whole insert with
@@ -347,6 +344,19 @@ export default function ExpensesPage() {
         );
         setRecurringSupported(false);
         ({ error } = await supabase.from('expenses').insert(base));
+      }
+
+      // A value was rejected as a bad uuid: drop exactly that field and save
+      // the expense anyway rather than losing what the user entered.
+      const offending = offendingUuidValue(error);
+      if (error && offending) {
+        const current = recurringSupported ? withRecurring : base;
+        const { payload: retryPayload, removed } = stripOffendingFields(current, offending);
+        console.warn(
+          `[expenses] Database rejected ${JSON.stringify(offending)} as a uuid; retrying without: ${removed.join(', ')}. ` +
+            'Run supabase_fix_owner_column_types.sql to restore attribution.'
+        );
+        ({ error } = await supabase.from('expenses').insert(retryPayload));
       }
 
       if (error) throw error;
@@ -369,7 +379,7 @@ export default function ExpensesPage() {
         .from('expenses')
         .update({
           status: 'approved',
-          approved_by: asUuidOrNull((user as any)?.id),
+          approved_by: (user as any)?.id ?? null,
           approved_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -399,7 +409,7 @@ export default function ExpensesPage() {
         .from('expenses')
         .update({
           status: 'rejected',
-          approved_by: asUuidOrNull((user as any)?.id),
+          approved_by: (user as any)?.id ?? null,
           approved_at: new Date().toISOString(),
           rejection_reason: rejectionReason,
           updated_at: new Date().toISOString(),
