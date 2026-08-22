@@ -13,3 +13,6 @@ twilio==8.10.0
 supabase==2.27.2
 apscheduler==3.10.4
 python-dotenv==1.0.0
+
+# Legal Doc Generator (server-side .docx template merge)
+docxtpl==0.20.2

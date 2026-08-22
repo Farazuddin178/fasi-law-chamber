@@ -31,6 +31,7 @@ const AdvocateReportPage = lazy(() => import('./pages/AdvocateReportPage'));
 const DailyCauselistPage = lazy(() => import('./pages/DailyCauselistPage'));
 const SittingArrangementsPage = lazy(() => import('./pages/SittingArrangementsPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+const LegalDocGeneratorPage = lazy(() => import('./pages/LegalDocGeneratorPage'));
 
 function PageSpinner() {
   return (
@@ -80,6 +81,7 @@ function AppRoutes() {
                 <Route path="/daily-causelist" element={<DailyCauselistPage />} />
                 <Route path="/case-lookup" element={<CaseLookupPage />} />
                 <Route path="/sitting-arrangements" element={<SittingArrangementsPage />} />
+                <Route path="/legal-docs" element={<LegalDocGeneratorPage />} />
                 <Route path="/links" element={<LinksPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/" element={<Navigate to="/dashboard" />} />

@@ -173,6 +173,71 @@ Rules:
 - Do not "fix" this by casting ids client-side. Check the column type first —
   `supabase_check_id_types.sql` prints all of them.
 
+## 5b. Legal Doc Generator — server-side .docx template merge
+
+`/legal-docs` (sidebar: "Legal Doc Generator") produces ready-to-file Word
+documents — RTI applications, municipal representation letters, High Court IA
+petitions, and Sec 528 BNSS quash petitions — in the chamber's standard
+layout, filled from a form instead of retyped by hand.
+
+**Architecture**: the four `.docx` files in `legal_templates/` are real Word
+documents (built by `scripts/build_legal_templates.py` via `python-docx`)
+carrying [docxtpl](https://github.com/elapouya/python-docx-template)/Jinja
+tags as plain text. `legal_doc_engine.py` merges form data into a template
+with `docxtpl` and returns bytes — it only ever substitutes text into
+existing runs/paragraphs/table rows, never reconstructs a document, which is
+what keeps the output "same to same" with the source layout instead of
+scrambled. `legal_doc_routes.py` is a thin Flask blueprint
+(`/api/legal-docs/generate`, `/api/legal-docs/types`) wrapping the engine, so
+the merge logic itself is testable without booting Flask. The frontend posts
+JSON and downloads the response through `src/lib/download.ts`
+(`downloadBlob`) — **not** a plain `<a download>` link, which per §3.4 does
+nothing at all in the Android WebView.
+
+### Trap: docxtpl loop/if tags must be ALONE in their own paragraph or row
+
+Verified directly against docxtpl 0.20.2 while building this (see
+`scripts/build_legal_templates.py` docstring). A `{%p for %}` / `{%p endfor
+%}` (or `{%tr for %}` / `{%tr endfor %}`, or the `if`/`endif` equivalents)
+tag must be the *only* content in its own whole paragraph (or table row):
+
+- **Wrong**: `{%tr for row in chrono %}{{ row.sno }}` in one table cell —
+  docxtpl's XML patcher matches the entire enclosing `<w:tr>`/`<w:p>` element
+  containing the tag and replaces the *whole thing* with the bare Jinja tag,
+  silently deleting any data cells/text that shared that row or paragraph.
+  No error is raised; the loop variable just renders as empty.
+- **Right**: three separate paragraphs/rows — one containing only `{%p for
+  x in items %}`, the next containing the actual templated content (this one
+  repeats per iteration), and a third containing only `{%p endfor %}`.
+
+This is exactly the kind of thing that looks like it should work and fails
+silently, so party lists (petitioners/respondents), numbered paragraph lists
+(grounds, information requested, affidavit paragraphs), and the chronology
+table in the templates all follow the three-paragraph/row pattern. Party
+formatting itself (name + relation + age + occupation + address, numbered,
+with "...Petitioner"/"...Petitioners" only on the last row) is computed in
+Python (`legal_doc_engine.format_party_line` / `format_party_list`) rather
+than in Jinja expressions inside the XML, specifically so it stays unit
+testable.
+
+### Adding a fifth document type
+
+1. Add a `build_x()` function to `scripts/build_legal_templates.py`
+   following the existing loop/if pattern, run it to regenerate
+   `legal_templates/*.docx`.
+2. Add a `_build_x_context()` function to `legal_doc_engine.py` and register
+   it in `_CONTEXT_BUILDERS`; add the template filename to
+   `DOCUMENT_TEMPLATES` and a label to `DOCUMENT_LABELS`.
+3. Add the matching TS field type + `defaultXFields()` to
+   `src/lib/legalDocSchemas.ts`, and a form section to
+   `LegalDocGeneratorPage.tsx` reusing `PartyRowsEditor` /
+   `ParagraphListEditor` for any repeatable data.
+
+**Out of scope for v1**: per-filing cover/index slips (Vakalath, Dispense
+folio number strips) seen in the sample filings — those are administrative
+filing-counter paperwork, not the substantive document content this feature
+targets.
+
 ## 6. Performance notes
 
 - Route-level code splitting in `App.tsx` keeps the initial bundle ~478 kB
@@ -206,16 +271,25 @@ Rules:
 ```
 src/
   pages/          one file per route; the large ones are CaseFormPage,
-                  CaseDetailsPage, TasksPage, DailyCauselistPage
+                  CaseDetailsPage, TasksPage, DailyCauselistPage,
+                  LegalDocGeneratorPage
   components/ui/  shadcn-style primitives (card, button, badge, alert, input,
                   separator, empty, record-card)
+  components/legal-docs/ PartyRowsEditor, ParagraphListEditor — repeatable
+                  form fields shared across the Legal Doc Generator's 4 types
   contexts/       AuthContext — also mounts push + notification listeners
   hooks/          useCapacitorPush, useNotificationListener, use-mobile
   lib/            supabase, api (BACKEND_URL), download, notify, openExternal,
-                  notificationManager, notificationService, caseService, database
+                  notificationManager, notificationService, caseService, database,
+                  legalDocSchemas, legalDocApi
 proxy.py                Flask app: CORS, court-site scraping, static serving
 notification_service.py WhatsApp (Twilio) + email
 notification_routes.py  notification endpoints (send-push is a placeholder)
+legal_doc_engine.py     Legal Doc Generator: form data -> rendered .docx (see §5b)
+legal_doc_routes.py     Legal Doc Generator Flask blueprint (/api/legal-docs/*)
+legal_templates/        the 4 source .docx templates (docxtpl tags), built by
+                        scripts/build_legal_templates.py — don't hand-edit the
+                        .docx files, edit the build script and re-run it
 android/                Capacitor Android project (committed)
 ```
 

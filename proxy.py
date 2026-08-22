@@ -87,6 +87,17 @@ except ImportError as e:
 except Exception as e:
     logging.error(f"Failed to initialize notification system: {e}")
 
+try:
+    from legal_doc_routes import legal_docs_bp
+
+    app.register_blueprint(legal_docs_bp)
+    logging.info("Legal Doc Generator routes registered")
+except ImportError as e:
+    logging.warning(f"Legal Doc Generator not available - missing dependencies: {e}")
+    logging.info("Run: pip install docxtpl")
+except Exception as e:
+    logging.error(f"Failed to initialize Legal Doc Generator: {e}")
+
 
 
 @app.route('/ping', methods=['GET'])
