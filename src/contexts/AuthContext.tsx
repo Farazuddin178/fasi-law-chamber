@@ -5,6 +5,7 @@ import { notificationService } from '@/lib/notificationService';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
 import { useNotificationListener } from '@/hooks/useNotificationListener';
 import { showNotification, requestNotificationPermission } from '@/lib/notify';
+import { pickUuid } from '@/lib/uuid';
 import toast from 'react-hot-toast';
 
 interface AuthContextType {
@@ -44,7 +45,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userData = JSON.parse(savedUser);
         const normalizedUser = {
           ...userData,
-          id: userData?.id ?? userData?.user_id ?? userData?.uid,
+          // Prefer whichever field is actually a UUID. Preferring `id`
+          // blindly picked a numeric row id over the real UUID, which then
+          // broke every insert into a uuid column. See lib/uuid.ts.
+          id: pickUuid(userData?.id, userData?.user_id, userData?.uid),
         };
         setUser(normalizedUser);
         setLoginLogId(savedLoginLogId);
@@ -131,7 +135,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userData = data.data.user;
       const normalizedUser = {
         ...userData,
-        id: userData?.id ?? userData?.user_id ?? userData?.uid,
+        // Prefer whichever field is actually a UUID. Preferring `id`
+        // blindly picked a numeric row id over the real UUID, which then
+        // broke every insert into a uuid column. See lib/uuid.ts.
+        id: pickUuid(userData?.id, userData?.user_id, userData?.uid),
       };
       const logId = data.data.login_log_id;
 

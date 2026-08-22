@@ -6,12 +6,21 @@ import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationManager } from '@/lib/notificationManager';
+import { pickUuid, asUuidOrNull } from '@/lib/uuid';
 
 export default function CaseFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const userId = (user as any)?.id ?? (user as any)?.user_id ?? (user as any)?.uid ?? null;
+  const userId = pickUuid((user as any)?.id, (user as any)?.user_id, (user as any)?.uid);
+  // created_by is a uuid column. Sending a non-uuid (a numeric row id, say)
+  // makes Postgres reject the entire statement with
+  // `invalid input syntax for type uuid`, losing the whole form. Attribution is
+  // worth less than the case record, so a bad id is stored as NULL and logged.
+  const createdByUuid = asUuidOrNull(userId);
+  if (userId && !createdByUuid) {
+    console.warn('[cases] User id is not a uuid, saving without attribution:', userId);
+  }
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [caseExists, setCaseExists] = useState(false);
@@ -379,7 +388,7 @@ export default function CaseFormPage() {
           .from('cases')
           .insert({
             ...caseData,
-            created_by: userId,
+            created_by: createdByUuid,
           })
           .select()
           .single();

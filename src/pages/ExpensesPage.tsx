@@ -4,6 +4,7 @@ import { Plus, DollarSign, CheckCircle, XCircle, Clock, Filter, X, FileDown, Rep
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveHtmlDocument, canPrintToPdf } from '@/lib/download';
+import { asUuidOrNull } from '@/lib/uuid';
 
 export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -282,8 +283,8 @@ export default function ExpensesPage() {
         expense_date: advanceDate(exp.expense_date, exp.recurrence_interval || 'monthly')
           .toISOString()
           .split('T')[0],
-        case_id: exp.case_id,
-        submitted_by: user?.id,
+        case_id: asUuidOrNull(exp.case_id),
+        submitted_by: asUuidOrNull((user as any)?.id),
         status: 'pending',
         is_recurring: true,
         recurrence_interval: exp.recurrence_interval || 'monthly',
@@ -308,13 +309,24 @@ export default function ExpensesPage() {
     }
 
     try {
+      // submitted_by and case_id are uuid columns. A non-uuid value makes
+      // Postgres reject the whole insert with `invalid input syntax for type
+      // uuid`, which is what stopped expenses being submitted at all.
+      const submittedBy = asUuidOrNull((user as any)?.id);
+      if ((user as any)?.id && !submittedBy) {
+        console.warn(
+          '[expenses] User id is not a uuid, saving without attribution:',
+          (user as any)?.id
+        );
+      }
+
       const base = {
         amount: parseFloat(formData.amount),
         category: formData.category,
         description: formData.description || null,
         expense_date: formData.expense_date,
-        case_id: formData.case_id || null,
-        submitted_by: user?.id,
+        case_id: asUuidOrNull(formData.case_id),
+        submitted_by: submittedBy,
         status: 'pending',
       };
 
@@ -357,7 +369,7 @@ export default function ExpensesPage() {
         .from('expenses')
         .update({
           status: 'approved',
-          approved_by: user?.id,
+          approved_by: asUuidOrNull((user as any)?.id),
           approved_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -387,7 +399,7 @@ export default function ExpensesPage() {
         .from('expenses')
         .update({
           status: 'rejected',
-          approved_by: user?.id,
+          approved_by: asUuidOrNull((user as any)?.id),
           approved_at: new Date().toISOString(),
           rejection_reason: rejectionReason,
           updated_at: new Date().toISOString(),
