@@ -49,14 +49,45 @@ export default function AnalyticsPage() {
     }
   };
 
+  /**
+   * Parse a case date defensively.
+   *
+   * Two problems this guards against:
+   *  - Invalid or empty values. `new Date('').getFullYear()` is NaN, and NaN was
+   *    being used as an object key, so charts grew a bogus "NaN" year bucket.
+   *  - DD-MM-YYYY values. Date.parse reads those as US M/D/Y or rejects them
+   *    outright, so 03-11-2025 landed in March instead of November.
+   */
+  const parseCaseDate = (value?: string | null): Date | null => {
+    if (!value) return null;
+
+    const ddmmyyyy = /^(\d{2})[-/](\d{2})[-/](\d{4})$/.exec(value.trim());
+    if (ddmmyyyy) {
+      const [, dd, mm, yyyy] = ddmmyyyy;
+      const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  /**
+   * The date a case was FILED. Deliberately does not fall back to created_at.
+   *
+   * created_at is when the row was entered into this system, not when the case
+   * was filed in court. Substituting it made every bulk-imported case look as
+   * though it was filed on the import date, which is what skewed the year and
+   * month charts.
+   */
+  const filingDateOf = (c: Case): Date | null => parseCaseDate(c.filing_date);
+
   // Filter cases
   const filteredCases = cases.filter(c => {
     if (yearFilter !== 'all') {
-      const dateStr = c.filing_date || c.created_at;
-      if (dateStr) {
-        const year = new Date(dateStr).getFullYear().toString();
-        if (year !== yearFilter) return false;
-      }
+      const filed = filingDateOf(c);
+      // Cases with no filing date cannot belong to a specific year.
+      if (!filed || filed.getFullYear().toString() !== yearFilter) return false;
     }
     if (categoryFilter !== 'all' && c.category !== categoryFilter) return false;
     return true;
@@ -76,22 +107,26 @@ export default function AnalyticsPage() {
     color: statusColors[status] || '#6b7280',
   }));
 
-  // Cases by year — use filing_date, fall back to created_at so every case is counted
+  // How many cases carry no usable filing date. Time-based charts cannot place
+  // these, so they are excluded and the count is surfaced instead of quietly
+  // distorting the totals.
+  const casesWithoutFilingDate = filteredCases.filter(c => !filingDateOf(c)).length;
+
+  // Cases by year, by status
   const casesByYear: { [key: string]: { [status: string]: number } } = {};
   filteredCases.forEach(c => {
-    const dateStr = c.filing_date || c.created_at;
-    if (dateStr && c.status) {
-      const year = new Date(dateStr).getFullYear().toString();
-      if (!casesByYear[year]) {
-        casesByYear[year] = {};
-        uniqueStatuses.forEach(status => {
-          casesByYear[year][status] = 0;
-        });
-      }
-      if (casesByYear[year][c.status] !== undefined) {
-        casesByYear[year][c.status]++;
-      }
+    const filed = filingDateOf(c);
+    if (!filed || !c.status) return;
+
+    const year = filed.getFullYear().toString();
+    if (!casesByYear[year]) {
+      casesByYear[year] = {};
+      uniqueStatuses.forEach(status => {
+        casesByYear[year][status] = 0;
+      });
     }
+    if (casesByYear[year][c.status] === undefined) casesByYear[year][c.status] = 0;
+    casesByYear[year][c.status]++;
   });
 
   const yearlyData = Object.keys(casesByYear)
@@ -108,21 +143,21 @@ export default function AnalyticsPage() {
       return result;
     });
 
-  // Cases by month (current year)
+  // Cases by month for the year in view
   const currentYear = new Date().getFullYear();
   const casesByMonth: { [key: string]: number } = {};
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   months.forEach(month => casesByMonth[month] = 0);
 
-  const targetYear = yearFilter === 'all' ? currentYear : parseInt(yearFilter);
+  const parsedYearFilter = parseInt(yearFilter, 10);
+  const targetYear = yearFilter === 'all' || Number.isNaN(parsedYearFilter)
+    ? currentYear
+    : parsedYearFilter;
+
   filteredCases.forEach(c => {
-    const dateStr = c.filing_date || c.created_at;
-    if (dateStr) {
-      const date = new Date(dateStr);
-      if (date.getFullYear() === targetYear) {
-        const month = months[date.getMonth()];
-        casesByMonth[month]++;
-      }
+    const filed = filingDateOf(c);
+    if (filed && filed.getFullYear() === targetYear) {
+      casesByMonth[months[filed.getMonth()]]++;
     }
   });
 
@@ -163,12 +198,15 @@ export default function AnalyticsPage() {
     })),
   ];
 
-  // Get available years
-  const availableYears = [...new Set(cases.map(c => {
-    const dateStr = c.filing_date || c.created_at;
-    if (dateStr) return new Date(dateStr).getFullYear().toString();
-    return null;
-  }).filter(Boolean))].sort().reverse();
+  // Years actually present in the filing dates. Uses the same parser as the
+  // charts so the dropdown can never offer a year the charts cannot show, and
+  // never lists a bogus "NaN" entry from an unparseable date.
+  const availableYears = [...new Set(
+    cases
+      .map(c => filingDateOf(c))
+      .filter((d): d is Date => d !== null)
+      .map(d => d.getFullYear().toString())
+  )].sort().reverse();
 
   if (loading) {
     return (
@@ -238,6 +276,16 @@ export default function AnalyticsPage() {
           </div>
         ))}
       </div>
+
+      {casesWithoutFilingDate > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">
+          <span className="font-semibold">{casesWithoutFilingDate}</span> case
+          {casesWithoutFilingDate === 1 ? ' has' : 's have'} no filing date, so
+          {casesWithoutFilingDate === 1 ? ' it is' : ' they are'} not counted in the
+          year and month charts. They are still included in the status and category
+          totals. Add a filing date on those cases to see them here.
+        </div>
+      )}
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

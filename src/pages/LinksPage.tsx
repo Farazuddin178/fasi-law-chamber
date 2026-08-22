@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ExternalLink, Copy, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { openExternal } from '@/lib/openExternal';
 
 interface QuickLink {
   title: string;
@@ -81,15 +82,13 @@ export default function LinksPage() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">{link.title}</h3>
                 <p className="text-sm text-gray-600 mb-4">{link.description}</p>
 
-                <a
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                <button
+                  onClick={() => openExternal(link.url)}
+                  className="w-full sm:w-auto justify-center inline-flex items-center gap-2 px-4 py-3 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition text-sm font-medium"
                 >
                   <span>Open Link</span>
-                  <ExternalLink className="w-4 h-4" />
-                </a>
+                  <ExternalLink className="w-4 h-4 shrink-0" />
+                </button>
 
                 <p className="text-xs text-gray-500 mt-3 break-all">{link.url}</p>
               </div>

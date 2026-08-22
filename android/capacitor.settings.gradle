@@ -2,6 +2,9 @@
 include ':capacitor-android'
 project(':capacitor-android').projectDir = new File('../../../../../tmp/legal-case-management/.pnpm/@capacitor+android@6.2.1_@capacitor+core@6.2.1/node_modules/@capacitor/android/capacitor')
 
+include ':capacitor-browser'
+project(':capacitor-browser').projectDir = new File('../../../../../tmp/legal-case-management/.pnpm/@capacitor+browser@6.0.6_@capacitor+core@6.2.1/node_modules/@capacitor/browser/android')
+
 include ':capacitor-filesystem'
 project(':capacitor-filesystem').projectDir = new File('../../../../../tmp/legal-case-management/.pnpm/@capacitor+filesystem@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/filesystem/android')
 

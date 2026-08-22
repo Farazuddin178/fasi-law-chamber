@@ -25,6 +25,14 @@ export default function ExpensesPage() {
   // Per-case rollup panel
   const [showRollup, setShowRollup] = useState(false);
 
+  /**
+   * False when the database has no is_recurring/recurrence_interval columns
+   * (i.e. supabase_expenses_recurring.sql has not been run). The recurring
+   * controls are hidden in that case rather than offering something that
+   * cannot be saved.
+   */
+  const [recurringSupported, setRecurringSupported] = useState(true);
+
   // Form state
   const [formData, setFormData] = useState({
     amount: '',
@@ -91,6 +99,15 @@ export default function ExpensesPage() {
     } catch (error: any) {
       console.error('Failed to load users:', error);
     }
+  };
+
+  /** Detects PostgREST's "column not in schema cache" rejection. */
+  const isMissingRecurringColumn = (error: any): boolean => {
+    const text = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`;
+    return (
+      error?.code === 'PGRST204' ||
+      /is_recurring|recurrence_interval/.test(text)
+    );
   };
 
   const applyFilters = () => {
@@ -291,27 +308,43 @@ export default function ExpensesPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('expenses')
-        .insert({
-          amount: parseFloat(formData.amount),
-          category: formData.category,
-          description: formData.description || null,
-          expense_date: formData.expense_date,
-          case_id: formData.case_id || null,
-          submitted_by: user?.id,
-          status: 'pending',
-          is_recurring: formData.is_recurring,
-          recurrence_interval: formData.is_recurring ? formData.recurrence_interval : null,
-        });
+      const base = {
+        amount: parseFloat(formData.amount),
+        category: formData.category,
+        description: formData.description || null,
+        expense_date: formData.expense_date,
+        case_id: formData.case_id || null,
+        submitted_by: user?.id,
+        status: 'pending',
+      };
+
+      let { error } = await supabase.from('expenses').insert({
+        ...base,
+        is_recurring: formData.is_recurring,
+        recurrence_interval: formData.is_recurring ? formData.recurrence_interval : null,
+      });
+
+      // The recurring columns only exist once supabase_expenses_recurring.sql
+      // has been run. Until then PostgREST rejects the whole insert with
+      // PGRST204 ("Could not find the 'is_recurring' column ... in the schema
+      // cache"), which made it impossible to add ANY expense. Fall back to an
+      // insert without those two fields so the core feature keeps working.
+      if (error && isMissingRecurringColumn(error)) {
+        console.warn(
+          '[expenses] Recurring columns missing - run supabase_expenses_recurring.sql. Saving without them.'
+        );
+        setRecurringSupported(false);
+        ({ error } = await supabase.from('expenses').insert(base));
+      }
 
       if (error) throw error;
-      
+
       toast.success('Expense submitted successfully');
       resetForm();
       setShowModal(false);
       loadExpenses();
     } catch (error: any) {
+      console.error('Expense submit failed:', error);
       toast.error(error.message || 'Failed to submit expense');
     }
   };
@@ -623,7 +656,7 @@ export default function ExpensesPage() {
       </div>
 
       {/* Due recurring expenses */}
-      {dueRecurring.length > 0 && (
+      {recurringSupported && dueRecurring.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <Repeat className="w-5 h-5 text-amber-600 shrink-0" />
@@ -899,6 +932,7 @@ export default function ExpensesPage() {
                 />
               </div>
 
+              {recurringSupported && (
               <div className="rounded-lg border border-gray-200 p-3 bg-gray-50">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -938,6 +972,7 @@ export default function ExpensesPage() {
                   </div>
                 )}
               </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Link to Case (Optional)</label>

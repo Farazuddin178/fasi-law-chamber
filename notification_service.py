@@ -58,10 +58,23 @@ class NotificationService:
         else:
             logger.warning("Twilio credentials not configured - WhatsApp disabled")
         
-        # Check email configuration
-        self.email_enabled = bool(SMTP_USER and SMTP_PASSWORD)
+        # Check email configuration.
+        #
+        # Email notifications are OFF by default: they were being sent for every
+        # task assignment and status change, which the chamber did not want.
+        # In-app and phone notifications cover the same events.
+        #
+        # To turn them back on, set EMAIL_NOTIFICATIONS_ENABLED=true in the
+        # environment (SMTP_USER and SMTP_PASSWORD must also be configured).
+        email_opt_in = os.getenv('EMAIL_NOTIFICATIONS_ENABLED', 'false').strip().lower() in (
+            '1', 'true', 'yes', 'on'
+        )
+        self.email_enabled = email_opt_in and bool(SMTP_USER and SMTP_PASSWORD)
+
         if self.email_enabled:
             logger.info(f"Email service configured. Host: {SMTP_HOST}, Port: {SMTP_PORT}, User: {SMTP_USER}")
+        elif not email_opt_in:
+            logger.info("Email notifications disabled (set EMAIL_NOTIFICATIONS_ENABLED=true to enable)")
         else:
             logger.warning("Email service not configured - set SMTP credentials")
     

@@ -47,6 +47,13 @@ function idFromTag(tag?: string): number {
   return Math.abs(hash) || 1;
 }
 
+/**
+ * Bump the suffix whenever the channel's importance or visibility changes.
+ * Android will not modify an existing channel, so a new id is the only way to
+ * roll out corrected settings to devices that already installed the app.
+ */
+const NOTIFICATION_CHANNEL_ID = 'fasi_alerts_v2';
+
 let nativePermissionChecked = false;
 let nativePermissionGranted = false;
 
@@ -67,14 +74,22 @@ async function ensureNativePermission(): Promise<boolean> {
     // createChannel is a no-op on iOS and is safe to call repeatedly.
     if (nativePermissionGranted && Capacitor.getPlatform() === 'android') {
       try {
+        // NOTE: Android freezes a channel's importance after creation - it can
+        // only be lowered by the user, never raised by the app. The id carries a
+        // version suffix so shipping a corrected channel actually takes effect
+        // instead of silently reusing an older, quieter one.
         await LocalNotifications.createChannel({
-          id: 'fasi_default',
-          name: 'Fasi Law Chamber',
+          id: NOTIFICATION_CHANNEL_ID,
+          name: 'Task & case alerts',
           description: 'Task assignments, case updates and reminders',
-          importance: 5, // IMPORTANCE_HIGH — heads-up banner, like WhatsApp
-          visibility: 1, // VISIBILITY_PUBLIC
+          // 5 = IMPORTANCE_HIGH: heads-up banner over whatever is on screen,
+          // with sound - this is what makes it behave like a WhatsApp message
+          // rather than a silent entry in the shade.
+          importance: 5,
+          // 1 = VISIBILITY_PUBLIC: full content shown on the lock screen.
+          visibility: 1,
           vibration: true,
-          sound: undefined,
+          lights: true,
         });
       } catch (channelErr) {
         console.warn('[notify] Could not create notification channel:', channelErr);
@@ -134,7 +149,7 @@ export async function showNotification(opts: NotifyOptions): Promise<void> {
             // fails to post. ic_stat_notify is a flat white silhouette.
             smallIcon: 'ic_stat_notify',
             iconColor: '#FBBF24',
-            channelId: 'fasi_default',
+            channelId: NOTIFICATION_CHANNEL_ID,
             autoCancel: true,
           },
         ],
