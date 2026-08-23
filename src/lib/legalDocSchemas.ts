@@ -73,7 +73,7 @@ export const DEFAULT_ADVOCATE_PROFILE: AdvocateProfile = {
   enrollment_no: '19272',
   office_address: '16-2-836/2A/1, Madhava Nagar, Saidabad, Hyderabad-500 059, Telangana, India.',
   email: 'fasiuddinadvocate@gmail.com',
-  phone: '6304851791',
+  phone: '+91 8142550969',
 };
 
 /** yyyy-mm-dd (from <input type="date">) -> dd-mm-yyyy (matches every sample filing). */

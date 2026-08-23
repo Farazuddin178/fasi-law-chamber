@@ -18,6 +18,11 @@ export default function TasksPage() {
   const [newComment, setNewComment] = useState('');
   /** taskId -> number of comments, shown as a badge on each task card. */
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  /** taskId -> every assigned user's id (primary + co-assignees). Falls back
+   * to task.assigned_to alone wherever a task has no task_assignees rows —
+   * either it was created before this feature, or the migration hasn't been
+   * run yet (see supabase_task_multi_assignees.sql). */
+  const [taskAssigneesMap, setTaskAssigneesMap] = useState<Record<string, string[]>>({});
   const [users, setUsers] = useState<User[]>([]);
   const [cases, setCases] = useState<Case[]>([]);
   const { user } = useAuth();
@@ -39,6 +44,12 @@ export default function TasksPage() {
     description: '',
     case_id: '',
     assigned_to: '',
+    // Every selected assignee, in selection order. assigned_to (above) is
+    // always kept in sync as assignees[0] — the "primary" assignee that
+    // accept/decline/reassignment still applies to — so nothing that reads
+    // task.assigned_to elsewhere in the app needs to change. Everyone in
+    // this list gets notified, not just the primary.
+    assignees: [] as string[],
     priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
     // Status can also be 'unaccepted' when a task is declined
     status: 'pending' as 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'unaccepted',
@@ -54,10 +65,32 @@ export default function TasksPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [tasks, statusFilter, priorityFilter, assignedFilter, searchTerm]);
+  }, [tasks, statusFilter, priorityFilter, assignedFilter, searchTerm, taskAssigneesMap]);
 
   const loadInitialData = async () => {
-    await Promise.all([loadTasks(), loadUsers(), loadCases(), loadCommentCounts()]);
+    await Promise.all([loadTasks(), loadUsers(), loadCases(), loadCommentCounts(), loadTaskAssignees()]);
+  };
+
+  /**
+   * Every task's full assignee list (primary + co-assignees), tallied
+   * client-side same as loadCommentCounts — PostgREST can't GROUP BY.
+   * Degrades quietly if task_assignees doesn't exist yet: tasks still show
+   * their single `assigned_to` via the map's fallback in getAssigneeNames().
+   */
+  const loadTaskAssignees = async () => {
+    try {
+      const { data, error } = await supabase.from('task_assignees').select('task_id, user_id');
+      if (error) throw error;
+
+      const map: Record<string, string[]> = {};
+      (data || []).forEach((row: any) => {
+        if (!row?.task_id || !row?.user_id) return;
+        (map[row.task_id] ||= []).push(row.user_id);
+      });
+      setTaskAssigneesMap(map);
+    } catch (err) {
+      console.warn('[Tasks] task_assignees not available yet (run supabase_task_multi_assignees.sql):', err);
+    }
   };
 
   const loadTasks = async () => {
@@ -130,6 +163,7 @@ export default function TasksPage() {
       .channel('tasks_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
         loadTasks();
+        loadTaskAssignees();
       })
       .subscribe();
 
@@ -163,11 +197,13 @@ export default function TasksPage() {
     }
 
     if (assignedFilter !== 'all') {
-      if (assignedFilter === 'me') {
-        filtered = filtered.filter(task => task.assigned_to === user?.id);
-      } else {
-        filtered = filtered.filter(task => task.assigned_to === assignedFilter);
-      }
+      // Co-assignees (task_assignees) count as "assigned" here too, not just
+      // the primary assigned_to — otherwise a co-assignee's own task never
+      // shows up under "My Tasks".
+      const targetId = assignedFilter === 'me' ? user?.id : assignedFilter;
+      filtered = filtered.filter(
+        task => task.assigned_to === targetId || (taskAssigneesMap[task.id] || []).includes(targetId || '')
+      );
     }
 
     setFilteredTasks(filtered);
@@ -204,28 +240,67 @@ export default function TasksPage() {
         .catch((err) => console.error('WhatsApp/email task notification failed:', err));
     }
 
+    /**
+     * Mirrors the full assignee list into task_assignees so everyone
+     * selected — not just the primary assigned_to — shows up as assigned.
+     * Wrapped in try/catch: the table only exists once
+     * supabase_task_multi_assignees.sql has been run, and the task itself is
+     * already saved via assigned_to either way, so a missing table here must
+     * not fail the whole save.
+     */
+    async function syncTaskAssignees(taskId: string, assigneeIds: string[]) {
+      try {
+        await supabase.from('task_assignees').delete().eq('task_id', taskId);
+        const ids = Array.from(new Set(assigneeIds.filter(Boolean)));
+        if (ids.length > 0) {
+          const { error } = await supabase
+            .from('task_assignees')
+            .insert(ids.map((user_id) => ({ task_id: taskId, user_id })));
+          if (error) throw error;
+        }
+      } catch (err) {
+        console.warn('[Tasks] Could not save co-assignees (run supabase_task_multi_assignees.sql):', err);
+      }
+    }
+
     try {
-      // Clean up empty strings to null for bigint fields
+      const assigneeIds = formData.assignees.filter(Boolean);
+
+      // assigned_to stays the primary (first selected) assignee for backward
+      // compatibility with every accept/decline/filter/dashboard query that
+      // already reads it. `assignees` itself is not a `tasks` column, so it
+      // is deliberately left out here and persisted separately below via
+      // task_assignees.
       const cleanedData = {
-        ...formData,
+        title: formData.title,
+        description: formData.description,
         case_id: formData.case_id || null,
-        assigned_to: formData.assigned_to || null,
+        assigned_to: assigneeIds[0] || null,
+        priority: formData.priority,
+        status: formData.status,
         due_date: formData.due_date || null,
       };
 
       if (isEditing && editingTaskId) {
         const previous = tasks.find((t) => t.id === editingTaskId);
-        const assigneeChanged =
-          !!cleanedData.assigned_to && previous?.assigned_to !== cleanedData.assigned_to;
+        const previousAssigneeIds = taskAssigneesMap[editingTaskId]?.length
+          ? taskAssigneesMap[editingTaskId]
+          : previous?.assigned_to
+          ? [previous.assigned_to]
+          : [];
+        const assigneeSetChanged =
+          assigneeIds.length > 0 &&
+          (assigneeIds.length !== previousAssigneeIds.length ||
+            assigneeIds.some((id) => !previousAssigneeIds.includes(id)));
         // Reassigning a declined task has to clear the decline, otherwise the
         // task keeps status 'unaccepted' and stays parked in the "Unaccepted
         // Tasks" section forever — which is why reassigning appeared to do
-        // nothing. Re-assigning to the *same* person is a deliberate retry, so
+        // nothing. Re-assigning to the *same* people is a deliberate retry, so
         // that resets it too.
-        const isRetry = previous?.status === 'unaccepted' && !!cleanedData.assigned_to;
+        const isRetry = previous?.status === 'unaccepted' && assigneeIds.length > 0;
 
         const updatePayload: any = { ...cleanedData };
-        if (assigneeChanged || isRetry) {
+        if (assigneeSetChanged || isRetry) {
           updatePayload.status = 'pending';
           updatePayload.decline_reason = null;
         }
@@ -237,12 +312,13 @@ export default function TasksPage() {
 
         if (error) throw error;
 
-        // Reassignment must notify the new assignee. This previously only
-        // happened when a task was first created, so anyone who received a task
-        // by reassignment was never told.
-        if (cleanedData.assigned_to && (assigneeChanged || isRetry)) {
-          notifyAssignee(editingTaskId, cleanedData.assigned_to, formData.title);
-        }
+        await syncTaskAssignees(editingTaskId, assigneeIds);
+
+        // Notify whoever is newly added; a retry re-notifies everyone
+        // currently assigned, matching the existing single-assignee retry
+        // behavior instead of silently notifying no one.
+        const toNotify = isRetry ? assigneeIds : assigneeIds.filter((id) => !previousAssigneeIds.includes(id));
+        toNotify.forEach((id) => notifyAssignee(editingTaskId, id, formData.title));
 
         toast.success('Task updated successfully');
       } else {
@@ -257,9 +333,11 @@ export default function TasksPage() {
           .single();
 
         if (error) throw error;
-        
-        if (cleanedData.assigned_to && data) {
-          notifyAssignee(data.id, cleanedData.assigned_to, formData.title);
+
+        if (data) {
+          await syncTaskAssignees(data.id, assigneeIds);
+          // Everyone selected gets notified, not just the primary assignee.
+          assigneeIds.forEach((id) => notifyAssignee(data.id, id, formData.title));
         }
 
         toast.success('Task created successfully');
@@ -268,17 +346,24 @@ export default function TasksPage() {
       resetForm();
       setShowCreateModal(false);
       loadTasks();
+      loadTaskAssignees();
     } catch (error: any) {
       toast.error(error.message || 'Failed to save task');
     }
   };
 
   const handleEdit = (task: Task) => {
+    const existingAssignees = taskAssigneesMap[task.id]?.length
+      ? taskAssigneesMap[task.id]
+      : task.assigned_to
+      ? [task.assigned_to]
+      : [];
     setFormData({
       title: task.title,
       description: task.description || '',
       case_id: task.case_id || '',
       assigned_to: task.assigned_to || '',
+      assignees: existingAssignees,
       priority: task.priority,
       status: task.status,
       due_date: task.due_date || '',
@@ -323,6 +408,7 @@ export default function TasksPage() {
       description: '',
       case_id: '',
       assigned_to: '',
+      assignees: [],
       priority: 'medium',
       status: 'pending',
       due_date: '',
@@ -540,6 +626,14 @@ export default function TasksPage() {
     }
   };
 
+  /** Every assignee's name for a task, comma-separated — falls back to the
+   * single `assigned_to` when task_assignees has no rows for this task. */
+  const getAssigneeNames = (task: Task): string => {
+    const ids = taskAssigneesMap[task.id]?.length ? taskAssigneesMap[task.id] : task.assigned_to ? [task.assigned_to] : [];
+    const names = ids.map((id) => users.find((u) => u.id === id)?.full_name).filter(Boolean) as string[];
+    return names.join(', ');
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'urgent': return 'bg-red-100 text-red-800 border-red-200';
@@ -715,7 +809,6 @@ export default function TasksPage() {
           </p>
           <div className="grid grid-cols-1 gap-4">
             {tasks.filter(t => t.status === 'unaccepted').map((task) => {
-              const assignedUser = users.find(u => u.id === task.assigned_to);
               const linkedCase = cases.find(c => c.id === task.case_id);
               
               return (
@@ -748,10 +841,10 @@ export default function TasksPage() {
                       )}
                       
                       <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                        {assignedUser && (
+                        {getAssigneeNames(task) && (
                           <div className="flex items-center gap-1">
                             <span className="font-medium">Was assigned to:</span>
-                            <span className="text-red-700 font-semibold">{assignedUser.full_name}</span>
+                            <span className="text-red-700 font-semibold">{getAssigneeNames(task)}</span>
                           </div>
                         )}
                         {linkedCase && (
@@ -803,7 +896,6 @@ export default function TasksPage() {
           </div>
         ) : (
           filteredTasks.map((task) => {
-            const assignedUser = users.find(u => u.id === task.assigned_to);
             const linkedCase = cases.find(c => c.id === task.case_id);
             
             return (
@@ -834,10 +926,10 @@ export default function TasksPage() {
                     )}
                     
                     <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                      {assignedUser && (
+                      {getAssigneeNames(task) && (
                         <div className="flex items-center gap-1">
                           <span className="font-medium">Assigned to:</span>
-                          <span>{assignedUser.full_name}</span>
+                          <span>{getAssigneeNames(task)}</span>
                         </div>
                       )}
                       {linkedCase && (
@@ -970,19 +1062,34 @@ export default function TasksPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
-                  <select
-                    value={formData.assigned_to}
-                    onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Unassigned</option>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Assign To
+                    {formData.assignees.length > 1 && (
+                      <span className="ml-1 font-normal text-gray-400">({formData.assignees.length} selected)</span>
+                    )}
+                  </label>
+                  <div className="w-full border border-gray-300 rounded-lg max-h-36 overflow-y-auto p-2 space-y-0.5">
+                    {users.length === 0 && <p className="text-sm text-gray-400 px-2 py-1">No users available</p>}
                     {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name}
-                      </option>
+                      <label
+                        key={u.id}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.assignees.includes(u.id)}
+                          onChange={(e) => {
+                            const assignees = e.target.checked
+                              ? [...formData.assignees, u.id]
+                              : formData.assignees.filter((id) => id !== u.id);
+                            setFormData({ ...formData, assignees });
+                          }}
+                        />
+                        <span>{u.full_name}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Select one or more — everyone selected gets notified.</p>
                 </div>
               </div>
 
@@ -1086,10 +1193,10 @@ export default function TasksPage() {
                 )}
                 
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  {selectedTask.assigned_to && (
+                  {getAssigneeNames(selectedTask) && (
                     <div>
                       <span className="font-medium text-gray-600">Assigned to:</span>
-                      <p className="text-gray-900">{users.find(u => u.id === selectedTask.assigned_to)?.full_name || 'Unknown'}</p>
+                      <p className="text-gray-900">{getAssigneeNames(selectedTask)}</p>
                     </div>
                   )}
                   {selectedTask.case_id && (

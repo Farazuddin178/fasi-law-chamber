@@ -135,6 +135,7 @@ Supabase SQL editor. **Features stay broken until they are run.**
 | `supabase_expenses_recurring.sql` | `is_recurring`, `recurrence_interval` on `expenses` |
 | `supabase_enable_realtime_notifications.sql` | puts `notifications` in the realtime publication — **without this, phone notifications cannot work** |
 | `supabase_remove_default_admin.sql` | step-by-step removal of the seeded admin (destructive; run manually) |
+| `supabase_task_multi_assignees.sql` | `task_assignees` join table — **without this, a task can only be assigned to one user and only that one gets notified** (see §5c) |
 | `supabase_migration_add_dates.sql`, `supabase_indexes.sql` | older, superseded by the first file |
 
 After any schema change run `NOTIFY pgrst, 'reload schema';` or PostgREST keeps

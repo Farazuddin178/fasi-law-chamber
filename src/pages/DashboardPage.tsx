@@ -40,6 +40,9 @@ export default function DashboardPage() {
   const [userCases, setUserCases] = useState<any[]>([]);
   const [filteredCases, setFilteredCases] = useState<any[]>([]);
   const [userTasks, setUserTasks] = useState<any[]>([]);
+  /** taskId -> every assigned user's id, for the "Assigned to" line on task
+   * cards below — mirrors TasksPage's multi-assignee display. */
+  const [taskAssigneesMap, setTaskAssigneesMap] = useState<Record<string, string[]>>({});
   const [users, setUsers] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isFullAdmin, setIsFullAdmin] = useState(false);
@@ -194,6 +197,32 @@ export default function DashboardPage() {
           tasksQuery
         ]);
 
+        // A non-admin is also "assigned" a task when they're a co-assignee via
+        // task_assignees, not just the primary assigned_to (see the
+        // multi-assignee feature in TasksPage) — otherwise a co-assignee who
+        // was notified about a task never actually sees it on their own
+        // dashboard. Degrades to primary-only if the migration hasn't run yet.
+        let dashboardTasks = tasksRes.data || [];
+        if (!isAdminRole && user?.id) {
+          try {
+            const { data: coAssigned } = await supabase
+              .from('task_assignees')
+              .select('task_id')
+              .eq('user_id', user.id);
+            const coAssignedIds = (coAssigned || [])
+              .map((r: any) => r.task_id)
+              .filter((id: string) => !dashboardTasks.some((t: any) => t.id === id));
+            if (coAssignedIds.length > 0) {
+              const { data: extraTasks } = await supabase.from('tasks').select('*').in('id', coAssignedIds);
+              dashboardTasks = [...dashboardTasks, ...(extraTasks || [])]
+                .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                .slice(0, 10);
+            }
+          } catch (err) {
+            console.warn('[Dashboard] Could not load co-assigned tasks:', err);
+          }
+        }
+
         // Get all system stats for admin/users
         const [allCasesRes, allTasksRes, docsRes, usersRes] = await Promise.all([
           supabase.from('cases').select('*', { count: 'exact', head: true }),
@@ -215,8 +244,28 @@ export default function DashboardPage() {
           closedCases: allCases.data?.filter(c => c.status === 'closed').length || 0
         });
 
+        // Full assignee list per task shown here, for display only — falls
+        // back to `assigned_to` alone via getAssigneeNames() if this table
+        // doesn't exist yet or returns nothing for a task.
+        if (dashboardTasks.length > 0) {
+          try {
+            const { data: assigneeRows } = await supabase
+              .from('task_assignees')
+              .select('task_id, user_id')
+              .in('task_id', dashboardTasks.map((t: any) => t.id));
+            const map: Record<string, string[]> = {};
+            (assigneeRows || []).forEach((row: any) => {
+              if (!row?.task_id || !row?.user_id) return;
+              (map[row.task_id] ||= []).push(row.user_id);
+            });
+            setTaskAssigneesMap(map);
+          } catch (err) {
+            console.warn('[Dashboard] Could not load task assignee names:', err);
+          }
+        }
+
         setUserCases(casesRes.data || []);
-        setUserTasks(tasksRes.data || []);
+        setUserTasks(dashboardTasks);
       }
 
     } catch (error: any) {
@@ -242,6 +291,14 @@ export default function DashboardPage() {
       const minutes = Math.floor(diff / (1000 * 60));
       return { text: `${minutes} min left`, color: 'text-red-600 font-bold', urgent: true };
     }
+  };
+
+  /** Every assignee's name for a task, comma-separated — falls back to the
+   * single `assigned_to` when taskAssigneesMap has no rows for this task. */
+  const getAssigneeNames = (task: any): string => {
+    const ids = taskAssigneesMap[task.id]?.length ? taskAssigneesMap[task.id] : task.assigned_to ? [task.assigned_to] : [];
+    const names = ids.map((id: string) => users.find((u: any) => u.id === id)?.full_name).filter(Boolean);
+    return names.join(', ');
   };
 
   const statCards = [
@@ -405,7 +462,6 @@ export default function DashboardPage() {
             {userTasks.slice(0, 5).map((task) => {
               const linkedCase = userCases.find(c => c.id === task.case_id);
               const timeRemaining = task.due_date ? getTimeRemaining(task.due_date) : null;
-              const assignedUser = users.find(u => u.id === task.assigned_to);
               
               return (
                 <div
@@ -452,10 +508,10 @@ export default function DashboardPage() {
                   </div>
                   
                   <div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-3">
-                    {assignedUser && (
+                    {getAssigneeNames(task) && (
                       <div className="flex items-center gap-1">
                         <span className="font-medium">{isAdmin ? 'Assigned to:' : 'You'}</span>
-                        {isAdmin && <span className="text-blue-700 font-semibold">{assignedUser.full_name}</span>}
+                        {isAdmin && <span className="text-blue-700 font-semibold">{getAssigneeNames(task)}</span>}
                       </div>
                     )}
                     {linkedCase && (
@@ -539,7 +595,6 @@ export default function DashboardPage() {
               {userTasks.filter(t => t.status === 'unaccepted').map((task) => {
                 const linkedCase = userCases.find(c => c.id === task.case_id);
                 const timeRemaining = task.due_date ? getTimeRemaining(task.due_date) : null;
-                const assignedUser = users.find(u => u.id === task.assigned_to);
                 const daysSinceAssignment = task.created_at ? 
                   Math.floor((new Date().getTime() - new Date(task.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0;
                 
@@ -563,10 +618,10 @@ export default function DashboardPage() {
                     </div>
                     
                     <div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-3">
-                      {assignedUser && (
+                      {getAssigneeNames(task) && (
                         <div className="flex items-center gap-1">
                           <span className="font-medium">Assigned to:</span>
-                          <span className="font-semibold text-gray-900">{assignedUser.full_name}</span>
+                          <span className="font-semibold text-gray-900">{getAssigneeNames(task)}</span>
                         </div>
                       )}
                       {linkedCase && (
