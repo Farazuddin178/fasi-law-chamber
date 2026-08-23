@@ -26,6 +26,7 @@ import {
   CalendarDays,
   Link2,
   FileSignature,
+  Bot,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import NotificationBell from './NotificationBell';
@@ -80,6 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Notifications', path: '/notifications', icon: <Bell className="w-5 h-5" /> },
     { name: 'Analytics', path: '/analytics', icon: <BarChart3 className="w-5 h-5" /> },
     { name: 'Expenses', path: '/expenses', icon: <Receipt className="w-5 h-5" /> },
+    { name: 'Chamber AI', path: '/chamber-ai', icon: <Bot className="w-5 h-5" />, adminOnly: true },
     { name: 'Users', path: '/users', icon: <Users className="w-5 h-5" />, adminOnly: true },
     { name: 'Storage', path: '/storage', icon: <HardDrive className="w-5 h-5" />, adminOnly: true },
     { name: 'GitHub', path: '/github', icon: <Github className="w-5 h-5" />, adminOnly: true },

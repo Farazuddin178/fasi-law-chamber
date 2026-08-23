@@ -98,6 +98,17 @@ except ImportError as e:
 except Exception as e:
     logging.error(f"Failed to initialize Legal Doc Generator: {e}")
 
+try:
+    from ai_routes import ai_bp
+
+    app.register_blueprint(ai_bp)
+    logging.info("Chamber AI routes registered")
+except ImportError as e:
+    logging.warning(f"Chamber AI not available - missing dependencies: {e}")
+    logging.info("Run: pip install google-genai")
+except Exception as e:
+    logging.error(f"Failed to initialize Chamber AI: {e}")
+
 
 
 @app.route('/ping', methods=['GET'])

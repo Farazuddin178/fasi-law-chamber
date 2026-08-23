@@ -46,4 +46,10 @@
 
     <!-- Lets scheduled/local notifications survive a reboot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Chamber AI document scanning (@capacitor/camera). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- required="false": the app must still install/run on devices with no
+         camera — Chamber AI's gallery picker still works there. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

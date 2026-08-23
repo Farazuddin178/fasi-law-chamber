@@ -32,6 +32,7 @@ const DailyCauselistPage = lazy(() => import('./pages/DailyCauselistPage'));
 const SittingArrangementsPage = lazy(() => import('./pages/SittingArrangementsPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 const LegalDocGeneratorPage = lazy(() => import('./pages/LegalDocGeneratorPage'));
+const ChamberAiPage = lazy(() => import('./pages/ChamberAiPage'));
 
 function PageSpinner() {
   return (
@@ -49,6 +50,13 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   }
 
   return user ? <>{children}</> : <Navigate to="/login" />;
+}
+
+// Nested inside PrivateRoute, so `user` is already known to exist here —
+// this only needs to check the role, not re-check auth/loading.
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  return user?.role === 'admin' ? <>{children}</> : <Navigate to="/dashboard" replace />;
 }
 
 function AppRoutes() {
@@ -82,6 +90,14 @@ function AppRoutes() {
                 <Route path="/case-lookup" element={<CaseLookupPage />} />
                 <Route path="/sitting-arrangements" element={<SittingArrangementsPage />} />
                 <Route path="/legal-docs" element={<LegalDocGeneratorPage />} />
+                <Route
+                  path="/chamber-ai"
+                  element={
+                    <AdminRoute>
+                      <ChamberAiPage />
+                    </AdminRoute>
+                  }
+                />
                 <Route path="/links" element={<LinksPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/" element={<Navigate to="/dashboard" />} />

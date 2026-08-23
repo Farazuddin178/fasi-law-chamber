@@ -19,3 +19,9 @@ services:
         value: "3.13.4"
       - key: NODE_VERSION
         value: "22"
+      # sync: false = Render will prompt for this in the dashboard and never
+      # read a value for it from this file — the correct place for a secret
+      # in a committed render.yaml. Set it under this service's Environment
+      # tab; Chamber AI (/chamber-ai) returns "not configured" without it.
+      - key: GEMINI_API_KEY
+        sync: false

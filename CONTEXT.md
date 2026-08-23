@@ -271,6 +271,90 @@ additionally records every co-assignee (primary included). Concretely:
   unmigrated deployment doesn't break — it just doesn't get the multi-assignee
   behavior until the migration is run.
 
+## 5d. Chamber AI — Gemini-backed assistant, admin only
+
+`/chamber-ai` (sidebar: "Chamber AI", **admin role only** — see the route
+guard below) is a chat assistant for legal Q&A, EN/TE/UR/HI translation, and
+scanned-document analysis, backed by the Gemini API (`google-genai` SDK).
+
+### The API key is an environment variable, never code
+
+`GEMINI_API_KEY` is read via `os.environ.get()` in `ai_routes.py` and nowhere
+else. It is **not** in `render.yaml` (declared there only as `sync: false` —
+a placeholder telling Render to prompt for it, with no value stored in git),
+not in any committed file, and the local copy lives only in the gitignored
+`.env`. Set it in Render's dashboard under this service's Environment tab.
+**If a key is ever pasted into a chat/ticket/anywhere outside that one field,
+treat it as compromised and regenerate it at
+[Google AI Studio](https://aistudio.google.com/apikey)** — pasting it
+somewhere doesn't make it more exposed if it's promptly rotated, but an old
+key nobody rotated is a standing risk.
+
+### Model name and generation config were verified against a live call, not assumed
+
+The originally specified model, `gemini-2.0-flash`, **404s** — it's been
+retired. Don't trust a model name from memory or an example; the API's own
+error message names the current replacement when one 404s. `GEMINI_MODEL`
+(env var, defaults to `gemini-3.6-flash` in `ai_routes.py`) exists so the
+model can be changed without a redeploy when this happens again.
+
+**Trap that cost real debugging time**: Gemini 3.x models spend part of
+`max_output_tokens` on internal "thinking" before producing visible text. A
+small `max_output_tokens` (tried: 20–50, chasing a "just answer already"
+instinct) comes back with `finish_reason=STOP` and **zero visible text and
+no error** — `thoughts_token_count` alone consumed the whole budget. Verified
+by inspecting `resp.usage_metadata.thoughts_token_count` directly.
+`ai_routes.py` keeps `max_output_tokens=4096` and caps (doesn't disable)
+thinking via `ThinkingConfig(thinking_budget=512, include_thoughts=False)` —
+disabling thinking entirely would hurt answer quality on statutory
+interpretation; leaving the budget on "automatic" made streaming feel like
+it hung before the first token.
+
+### Streaming
+
+`POST /api/ai/chat` streams plain text via
+`Response(stream_with_context(...), mimetype='text/plain')`; the frontend
+(`src/lib/chamberAiApi.ts`) reads it with `res.body.getReader()` and appends
+each chunk to the in-progress assistant message. Validation (empty
+`messages`, bad image mime type, oversized image) happens **before** the
+stream starts, so those come back as a normal JSON 400/503 the frontend can
+show as a toast; errors that happen mid-generation (rate limit, model
+error) are appended into the stream itself as a trailing `⚠️ ...` line,
+since HTTP headers/status are already committed by then. gunicorn already
+runs `--worker-class gthread` (see §3.3), which streams chunked responses
+fine — this was not something that needed changing.
+
+### Admin-only route protection — a new, stricter pattern
+
+`UsersPage`/`StorageMonitoringPage` gate themselves by rendering an "Access
+Denied" message in-page; the route itself stays reachable. Chamber AI uses a
+router-level `AdminRoute` wrapper in `App.tsx` (nested inside the existing
+`PrivateRoute`) that redirects a non-admin straight to `/dashboard` instead.
+Both patterns now exist in the codebase; `AdminRoute` is the one to reach
+for on new admin-only pages going forward. `restricted_admin` does **not**
+count as admin for this route or the sidebar link — only `role === 'admin'`.
+
+### Document scanning
+
+`@capacitor/camera` (added this session, matching the other plugins at v6)
+opens the native camera/gallery picker on Android and returns base64
+directly. On web there is no Capacitor camera, so `src/lib/camera.ts` falls
+back to a plain `<input type="file" accept="image/*" capture="environment">`
+— the standard web way to hint a phone browser to open its camera, and a
+normal file picker everywhere else. `AndroidManifest.xml` now declares
+`CAMERA` (`uses-feature required="false"` so a camera-less device still
+installs fine) — no `file_paths.xml` change was needed, its existing
+`cache-path`/`external-path` entries already cover the whole cache dir.
+
+### Extending with real tools later
+
+`ai_routes.py`'s `_build_tools()` returns `None` and is passed straight into
+`GenerateContentConfig(tools=...)` — that's the real, already-wired
+extension point for case-file search / notice drafting once one of those
+exists as an actual `google.genai.types.Tool`. Deliberately not scaffolded
+further than that: a fake "tool framework" with nothing plugged into it
+would just be another kind of placeholder.
+
 ## 6. Performance notes
 
 - Route-level code splitting in `App.tsx` keeps the initial bundle ~478 kB
@@ -305,16 +389,17 @@ additionally records every co-assignee (primary included). Concretely:
 src/
   pages/          one file per route; the large ones are CaseFormPage,
                   CaseDetailsPage, TasksPage, DailyCauselistPage,
-                  LegalDocGeneratorPage
+                  LegalDocGeneratorPage, ChamberAiPage
   components/ui/  shadcn-style primitives (card, button, badge, alert, input,
-                  separator, empty, record-card)
+                  separator, empty, record-card, markdown — the last is
+                  Chamber AI's dependency-free chat-response renderer)
   components/legal-docs/ PartyRowsEditor, ParagraphListEditor — repeatable
                   form fields shared across the Legal Doc Generator's 4 types
   contexts/       AuthContext — also mounts push + notification listeners
   hooks/          useCapacitorPush, useNotificationListener, use-mobile
   lib/            supabase, api (BACKEND_URL), download, notify, openExternal,
                   notificationManager, notificationService, caseService, database,
-                  legalDocSchemas, legalDocApi
+                  legalDocSchemas, legalDocApi, camera, chamberAiApi
 proxy.py                Flask app: CORS, court-site scraping, static serving
 notification_service.py WhatsApp (Twilio) + email
 notification_routes.py  notification endpoints (send-push is a placeholder)
@@ -323,6 +408,8 @@ legal_doc_routes.py     Legal Doc Generator Flask blueprint (/api/legal-docs/*)
 legal_templates/        the 4 source .docx templates (docxtpl tags), built by
                         scripts/build_legal_templates.py — don't hand-edit the
                         .docx files, edit the build script and re-run it
+ai_routes.py            Chamber AI Flask blueprint (/api/ai/*, see §5d) —
+                        GEMINI_API_KEY is an env var only, never in this file
 android/                Capacitor Android project (committed)
 ```
 
