@@ -146,23 +146,24 @@ falls back to an insert without the recurring columns when they are absent.
 
 ## 5a. Primary key types are NOT uniform — check before writing an id
 
-Confirmed from `information_schema`:
+| column | type | how it's known |
+|---|---|---|
+| `users.id` | **uuid** | confirmed via `information_schema` |
+| `cases.id` | **bigint** | confirmed via `information_schema` |
+| `cases.created_by` | uuid (matches `users.id`) | confirmed |
+| `expenses.case_id` | bigint (matches `cases.id`) | confirmed |
+| `expenses.submitted_by`, `expenses.approved_by` | uuid | confirmed |
+| `documents.uploaded_by` | uuid | confirmed |
+| `notifications.related_id` | uuid | confirmed |
+| `tasks.id` | **bigint** (matches `cases.id`, not `users.id`) | confirmed the hard way — `task_assignees_task_id_fkey` failed with "task_id and id are of incompatible types: uuid and bigint" when task_assignees.task_id was created as uuid. **§5b's original entry said uuid; that was wrong** — it had been inferred, not actually checked against `information_schema` for this table. Don't repeat that: run `supabase_check_id_types.sql` and read the actual row before writing a migration, even when a type "seems obvious" from a pattern seen elsewhere. |
+| `task_comments.task_id` | presumably bigint (must match `tasks.id` for the existing comment-count/lookup logic to work) — **not directly verified**, treat as unconfirmed until checked |
 
-| column | type |
-|---|---|
-| `users.id` | **uuid** |
-| `cases.id` | **bigint** |
-| `cases.created_by` | uuid (matches `users.id`) |
-| `expenses.case_id` | bigint (matches `cases.id`) |
-| `expenses.submitted_by`, `expenses.approved_by` | uuid |
-| `documents.uploaded_by` | uuid |
-| `notifications.related_id` | uuid |
-| `tasks.id`, `task_comments.task_id` | uuid |
-
-So **user ids are UUIDs and case ids are bigints**. A case id written into any
-uuid column fails the whole statement with
-`invalid input syntax for type uuid: "1363"`. This is exactly what happened when
-`notifyCaseChange` passed a case id as `relatedId` into `notifications.related_id`.
+So **user ids are UUIDs; case ids and task ids are bigints**. Writing the
+wrong kind of id into a uuid column fails the whole statement with
+`invalid input syntax for type uuid: "1363"`; writing it into a table's FK
+with the wrong declared type fails at migration time instead, the way
+`task_assignees` did. This is exactly what happened when `notifyCaseChange`
+passed a case id as `relatedId` into `notifications.related_id`.
 
 Rules:
 - `notificationManager` stores a non-uuid reference in `metadata.related_ref`
@@ -238,6 +239,37 @@ testable.
 folio number strips) seen in the sample filings — those are administrative
 filing-counter paperwork, not the substantive document content this feature
 targets.
+
+## 5c. Multi-assignee tasks
+
+A task can be assigned to more than one user via `public.task_assignees`
+(`supabase_task_multi_assignees.sql` — **required**, see §5a for why its
+first draft failed: `task_id` is bigint, not uuid, because it references
+`tasks.id`, not `users.id`).
+
+`tasks.assigned_to` is kept as the **primary** assignee and is untouched in
+meaning — it's still exactly what accept/decline, reassignment-clears-decline,
+and every existing single-assignee query already read. `task_assignees`
+additionally records every co-assignee (primary included). Concretely:
+
+- `TasksPage`'s "Assign To" is a checklist, not a `<select>`. On save,
+  `assigned_to` = the first checked user; `task_assignees` gets a row for
+  every checked user.
+- Every checked user gets notified (loops the existing single-user
+  `notifyAssignee`/`notificationManager.notifyTaskAssignment` call — no
+  changes to the notification pipeline itself, see §4).
+- "My Tasks" filtering (`TasksPage`'s `assignedFilter`, `DashboardPage`'s
+  task list, per non-admin user) matches `task_assignees` in addition to
+  `assigned_to` — a co-assignee who could see they'd been notified but never
+  found the task in their own list would be a half-working feature.
+- Accept/decline/status is still single-valued per task (whoever the primary
+  assignee is). Co-assignees are informational + notified, not wired into a
+  separate per-person status — that would need a real per-assignee status
+  model, which is a bigger redesign than what was asked for here.
+- Everywhere `task_assignees` is read, the frontend degrades to
+  `assigned_to` alone in a `try/catch` if the table doesn't exist yet, so an
+  unmigrated deployment doesn't break — it just doesn't get the multi-assignee
+  behavior until the migration is run.
 
 ## 6. Performance notes
 

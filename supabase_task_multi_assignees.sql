@@ -10,9 +10,12 @@
 -- but nobody except the primary assignee gets notified until this is run.
 -- ================================================================
 
+-- task_id is bigint, NOT uuid — tasks.id is bigint (like cases.id), unlike
+-- users.id which is uuid. See CONTEXT.md §5a: this was wrong there too,
+-- inferred rather than actually checked against tasks/task_comments.
 CREATE TABLE IF NOT EXISTS public.task_assignees (
-  task_id    uuid NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
-  user_id    uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  task_id    bigint NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
+  user_id    uuid   NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (task_id, user_id)
 );
